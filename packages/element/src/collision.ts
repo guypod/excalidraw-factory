@@ -51,6 +51,7 @@ import {
   deconstructDiamondElement,
   deconstructLinearOrFreeDrawElement,
   deconstructRectanguloidElement,
+  deconstructTriangleElement,
 } from "./utils";
 
 import { getBoundTextElement } from "./textElement";
@@ -73,6 +74,7 @@ import type {
   ExcalidrawFreeDrawElement,
   ExcalidrawLinearElement,
   ExcalidrawRectanguloidElement,
+  ExcalidrawTriangleElement,
   NonDeleted,
   NonDeletedExcalidrawElement,
   NonDeletedSceneElementsMap,
@@ -471,6 +473,14 @@ export const intersectElementWithLineSegment = (
         offset,
         onlyFirst,
       );
+    case "triangle":
+      return intersectTriangleWithLineSegment(
+        element,
+        elementsMap,
+        line,
+        offset,
+        onlyFirst,
+      );
     case "ellipse":
       return intersectEllipseWithLineSegment(
         element,
@@ -697,6 +707,36 @@ const intersectDiamondWithLineSegment = (
 
   curveIntersections(
     corners,
+    rotatedIntersector,
+    intersections,
+    center,
+    element.angle,
+    onlyFirst,
+  );
+
+  return intersections;
+};
+
+const intersectTriangleWithLineSegment = (
+  element: ExcalidrawTriangleElement,
+  elementsMap: ElementsMap,
+  l: LineSegment<GlobalPoint>,
+  offset: number = 0,
+  onlyFirst = false,
+): GlobalPoint[] => {
+  const center = elementCenterPoint(element, elementsMap);
+
+  // Rotate the point to the inverse direction to simulate the rotated triangle
+  // points. It's all the same distance-wise.
+  const rotatedA = pointRotateRads(l[0], center, -element.angle as Radians);
+  const rotatedB = pointRotateRads(l[1], center, -element.angle as Radians);
+  const rotatedIntersector = lineSegment(rotatedA, rotatedB);
+
+  const [sides] = deconstructTriangleElement(element, offset);
+  const intersections: GlobalPoint[] = [];
+
+  lineIntersections(
+    sides,
     rotatedIntersector,
     intersections,
     center,

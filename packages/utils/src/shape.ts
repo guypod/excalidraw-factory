@@ -51,6 +51,7 @@ import type {
   ExcalidrawRectangleElement,
   ExcalidrawSelectionElement,
   ExcalidrawTextElement,
+  ExcalidrawTriangleElement,
 } from "@excalidraw/element/types";
 import type { Curve, LineSegment, Polygon, Radians } from "@excalidraw/math";
 
@@ -105,6 +106,7 @@ export type GeometricShape<Point extends GlobalPoint | LocalPoint> =
 type RectangularElement =
   | ExcalidrawRectangleElement
   | ExcalidrawDiamondElement
+  | ExcalidrawTriangleElement
   | ExcalidrawFrameLikeElement
   | ExcalidrawEmbeddableElement
   | ExcalidrawImageElement
@@ -131,6 +133,12 @@ export const getPolygonShape = <Point extends GlobalPoint | LocalPoint>(
       pointRotateRads(pointFrom(x + width, cy), center, angle),
       pointRotateRads(pointFrom(cx, y + height), center, angle),
       pointRotateRads(pointFrom(x, cy), center, angle),
+    );
+  } else if (element.type === "triangle") {
+    data = polygon(
+      pointRotateRads(pointFrom(cx, y), center, angle), // apex
+      pointRotateRads(pointFrom(x + width, y + height), center, angle), // bottom-right
+      pointRotateRads(pointFrom(x, y + height), center, angle), // bottom-left
     );
   } else {
     data = polygon(

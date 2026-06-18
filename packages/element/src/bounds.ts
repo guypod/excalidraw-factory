@@ -46,6 +46,7 @@ import { getElementShape } from "./shape";
 import {
   deconstructDiamondElement,
   deconstructRectanguloidElement,
+  deconstructTriangleElement,
 } from "./utils";
 import { intersectElementWithLineSegment } from "./collision";
 import { elementOverlapsWithFrame, getContainingFrame } from "./frame";
@@ -199,6 +200,20 @@ export class ElementBounds {
       const minY = Math.min(y11, y12, y22, y21);
       const maxX = Math.max(x11, x12, x22, x21);
       const maxY = Math.max(y11, y12, y22, y21);
+      bounds = [minX, minY, maxX, maxY];
+    } else if (element.type === "triangle") {
+      // The tight bounding box of a rotated triangle is derived from its three
+      // actual vertices (apex, bottom-right, bottom-left) rather than the
+      // element's bounding box corners.
+      const [apex, bottomRight, bottomLeft] = [
+        pointRotateRads(pointFrom(cx, y1), pointFrom(cx, cy), element.angle),
+        pointRotateRads(pointFrom(x2, y2), pointFrom(cx, cy), element.angle),
+        pointRotateRads(pointFrom(x1, y2), pointFrom(cx, cy), element.angle),
+      ];
+      const minX = Math.min(apex[0], bottomRight[0], bottomLeft[0]);
+      const minY = Math.min(apex[1], bottomRight[1], bottomLeft[1]);
+      const maxX = Math.max(apex[0], bottomRight[0], bottomLeft[0]);
+      const maxY = Math.max(apex[1], bottomRight[1], bottomLeft[1]);
       bounds = [minX, minY, maxX, maxY];
     } else if (element.type === "ellipse") {
       const w = (x2 - x1) / 2;
@@ -366,6 +381,10 @@ export const getElementLineSegments = (
     const rotatedSides = getRotatedSides(sides, center, element.angle);
 
     return [...rotatedSides, ...cornerSegments];
+  } else if (element.type === "triangle") {
+    const [sides] = deconstructTriangleElement(element);
+
+    return getRotatedSides(sides, center, element.angle);
   } else if (shape.type === "polygon") {
     if (isTextElement(element)) {
       const container = getContainerElement(element, elementsMap);
@@ -532,6 +551,24 @@ export const getDiamondPoints = (element: ExcalidrawElement) => {
   const leftY = rightY;
 
   return [topX, topY, rightX, rightY, bottomX, bottomY, leftX, leftY];
+};
+
+/**
+ * Returns the three corner points of an (upward-pointing isosceles) triangle
+ * element in element-local coordinates, in the order:
+ * apex (top center), bottom-right, bottom-left.
+ */
+export const getTrianglePoints = (element: ExcalidrawElement) => {
+  // +1 mirrors getDiamondPoints to avoid zero-width values which make
+  // rough.js throw.
+  const apexX = Math.floor(element.width / 2) + 1;
+  const apexY = 0;
+  const bottomRightX = element.width;
+  const bottomRightY = element.height;
+  const bottomLeftX = 0;
+  const bottomLeftY = element.height;
+
+  return [apexX, apexY, bottomRightX, bottomRightY, bottomLeftX, bottomLeftY];
 };
 
 // reference: https://eliot-jones.com/2019/12/cubic-bezier-curve-bounding-boxes

@@ -12,6 +12,7 @@ import {
   deconstructDiamondElement,
   deconstructLinearOrFreeDrawElement,
   deconstructRectanguloidElement,
+  deconstructTriangleElement,
 } from "./utils";
 
 import { elementCenterPoint } from "./bounds";
@@ -24,6 +25,7 @@ import type {
   ExcalidrawFreeDrawElement,
   ExcalidrawLinearElement,
   ExcalidrawRectanguloidElement,
+  ExcalidrawTriangleElement,
 } from "./types";
 
 export const distanceToElement = (
@@ -43,6 +45,8 @@ export const distanceToElement = (
       return distanceToRectanguloidElement(element, elementsMap, p);
     case "diamond":
       return distanceToDiamondElement(element, elementsMap, p);
+    case "triangle":
+      return distanceToTriangleElement(element, elementsMap, p);
     case "ellipse":
       return distanceToEllipseElement(element, elementsMap, p);
     case "line":
@@ -108,6 +112,30 @@ const distanceToDiamondElement = (
       .map((a) => curvePointDistance(a, rotatedPoint))
       .filter((d): d is number => d !== null),
   );
+};
+
+/**
+ * Returns the distance of a point and the provided triangle element,
+ * accounting for rotation
+ *
+ * @param element The triangle element
+ * @param p The point to consider
+ * @returns The eucledian distance to the outline of the triangle
+ */
+const distanceToTriangleElement = (
+  element: ExcalidrawTriangleElement,
+  elementsMap: ElementsMap,
+  p: GlobalPoint,
+): number => {
+  const center = elementCenterPoint(element, elementsMap);
+
+  // Rotate the point to the inverse direction to simulate the rotated triangle
+  // points. It's all the same distance-wise.
+  const rotatedPoint = pointRotateRads(p, center, -element.angle as Radians);
+
+  const [sides] = deconstructTriangleElement(element);
+
+  return Math.min(...sides.map((s) => distanceToLineSegment(rotatedPoint, s)));
 };
 
 /**

@@ -34,7 +34,11 @@ import type {
   Zoom,
 } from "@excalidraw/excalidraw/types";
 
-import { elementCenterPoint, getDiamondPoints } from "./bounds";
+import {
+  elementCenterPoint,
+  getDiamondPoints,
+  getTrianglePoints,
+} from "./bounds";
 
 import { generateLinearCollisionShape } from "./shape";
 
@@ -57,6 +61,7 @@ import type {
   ExcalidrawFreeDrawElement,
   ExcalidrawLinearElement,
   ExcalidrawRectanguloidElement,
+  ExcalidrawTriangleElement,
 } from "./types";
 
 type ElementShape = [LineSegment<GlobalPoint>[], Curve<GlobalPoint>[]];
@@ -456,6 +461,54 @@ export function deconstructDiamondElement(
   ];
 
   const shape = [sides, corners.flat()] as ElementShape;
+
+  setElementShapesCacheEntry(element, shape, offset);
+
+  return shape;
+}
+
+/**
+ * Get the **unrotated** building components of a triangle element in the form
+ * of line segments (the triangle has no rounded corners, so the curves array is
+ * always empty), as a tuple in the order [sides, curves].
+ *
+ * The triangle is an upward-pointing isosceles triangle inscribed in the
+ * element's bounding box.
+ *
+ * @param element The element to deconstruct
+ * @param offset An optional offset
+ * @returns Tuple of **unrotated** line segments (0) and curves (1)
+ */
+export function deconstructTriangleElement(
+  element: ExcalidrawTriangleElement,
+  offset: number = 0,
+): [LineSegment<GlobalPoint>[], Curve<GlobalPoint>[]] {
+  const cachedShape = getElementShapesCacheEntry(element, offset);
+
+  if (cachedShape) {
+    return cachedShape;
+  }
+
+  const [apexX, apexY, bottomRightX, bottomRightY, bottomLeftX, bottomLeftY] =
+    getTrianglePoints(element);
+
+  const apex = pointFrom<GlobalPoint>(element.x + apexX, element.y + apexY);
+  const bottomRight = pointFrom<GlobalPoint>(
+    element.x + bottomRightX,
+    element.y + bottomRightY,
+  );
+  const bottomLeft = pointFrom<GlobalPoint>(
+    element.x + bottomLeftX,
+    element.y + bottomLeftY,
+  );
+
+  const sides = [
+    lineSegment<GlobalPoint>(apex, bottomRight),
+    lineSegment<GlobalPoint>(bottomRight, bottomLeft),
+    lineSegment<GlobalPoint>(bottomLeft, apex),
+  ];
+
+  const shape = [sides, []] as ElementShape;
 
   setElementShapesCacheEntry(element, shape, offset);
 
