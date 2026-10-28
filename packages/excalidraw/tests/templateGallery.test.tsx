@@ -115,7 +115,9 @@ describe("<TemplateGalleryDialog/>", () => {
     // inserted elements are selected and centered in the viewport
     expect(
       inserted.every(
-        (el) => h.state.selectedElementIds[el.id] || el.containerId,
+        (el) =>
+          h.state.selectedElementIds[el.id] ||
+          (isTextElement(el) && el.containerId),
       ),
     ).toBe(true);
     const [minX, minY, maxX, maxY] = getCommonBounds(inserted);
@@ -187,6 +189,33 @@ describe("<TemplateGalleryDialog/>", () => {
     expect(getDialog()).toBeNull();
     const texts = h.elements.filter(isTextElement).map((el) => el.originalText);
     expect(texts).toContain(WORKSHOP_TEMPLATES[1].getLabel());
+  });
+
+  it("keeps gallery arrow keys from moving selected scene elements", async () => {
+    const existing = API.createElement({ type: "rectangle", x: 10, y: 20 });
+    API.setElements([existing]);
+    API.setSelectedElements([existing]);
+
+    await openGallery();
+    const retro = queryByTestId(
+      getDialog(),
+      "template-gallery-option-retrospective",
+    )!;
+    fireEvent.keyDown(retro, { key: KEYS.ARROW_DOWN });
+    fireEvent.keyDown(document.activeElement!, { key: KEYS.ARROW_RIGHT });
+
+    expect(h.elements).toEqual([
+      expect.objectContaining({ id: existing.id, x: 10, y: 20 }),
+    ]);
+  });
+
+  it("returns focus to the editor on cancel", async () => {
+    await openGallery();
+    fireEvent.click(queryByTestId(getDialog(), "template-gallery-cancel")!);
+    expect(getDialog()).toBeNull();
+    expect(document.activeElement).toBe(
+      document.querySelector(".excalidraw-container"),
+    );
   });
 
   it("cancels without changing the scene", async () => {

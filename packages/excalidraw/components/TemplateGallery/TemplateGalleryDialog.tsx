@@ -74,11 +74,17 @@ export const TemplateGalleryDialog = ({ onClose }: { onClose: () => void }) => {
     return () => clearTimeout(timeout);
   }, []);
 
+  const closeDialog = () => {
+    onClose();
+    // the element that opened the dialog may be gone, so return focus to the
+    // editor rather than leaving it on the document body
+    focusContainer();
+  };
+
   const insertTemplate = (template: WorkshopTemplate) => {
     onInsertElements(getWorkshopTemplateElements(template));
     trackEvent("template", "insert", template.id);
-    onClose();
-    focusContainer();
+    closeDialog();
   };
 
   const moveSelection = (index: number) => {
@@ -91,28 +97,29 @@ export const TemplateGalleryDialog = ({ onClose }: { onClose: () => void }) => {
   const handleOptionKeyDown = (event: React.KeyboardEvent) => {
     switch (event.key) {
       case KEYS.ENTER:
-        event.preventDefault();
         insertTemplate(selected);
         break;
       case KEYS.ARROW_DOWN:
       case KEYS.ARROW_RIGHT:
-        event.preventDefault();
         moveSelection(selectedIndex + 1);
         break;
       case KEYS.ARROW_UP:
       case KEYS.ARROW_LEFT:
-        event.preventDefault();
         moveSelection(selectedIndex - 1);
         break;
       case "Home":
-        event.preventDefault();
         moveSelection(0);
         break;
       case "End":
-        event.preventDefault();
         moveSelection(WORKSHOP_TEMPLATES.length - 1);
         break;
+      default:
+        return;
     }
+    // keep handled keys away from the editor's shortcuts, which would
+    // otherwise move or edit the selected scene elements
+    event.preventDefault();
+    event.stopPropagation();
   };
 
   const labels = useMemo(
@@ -123,7 +130,7 @@ export const TemplateGalleryDialog = ({ onClose }: { onClose: () => void }) => {
   return (
     <Dialog
       size="wide"
-      onCloseRequest={onClose}
+      onCloseRequest={closeDialog}
       title={t("templateGallery.title")}
       className="TemplateGalleryDialog"
       autofocus={false}
@@ -180,7 +187,7 @@ export const TemplateGalleryDialog = ({ onClose }: { onClose: () => void }) => {
         <DialogActionButton
           label={t("buttons.cancel")}
           data-testid="template-gallery-cancel"
-          onClick={onClose}
+          onClick={closeDialog}
         />
         <DialogActionButton
           label={t("templateGallery.insert")}
