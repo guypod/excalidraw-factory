@@ -27,6 +27,6 @@ jobs:
           CI: true
           NODE_OPTIONS: --max-old-space-size=768
       - name: Test package size checker
-        run: node --test scripts/check-package-size.test.js
+        run: node --test scripts/check-package-size.node-tests.js
       - name: Check package size
         run: node scripts/check-package-size.js
