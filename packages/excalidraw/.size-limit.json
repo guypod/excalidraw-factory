@@ -1,16 +1,12 @@
 [
   {
-    "path": "dist/excalidraw.production.min.js",
-    "limit": "340 kB"
+    "path": "dist/prod/**/*.js",
+    "name": "all production JavaScript (baseline: 1575.3 kB gzip, 69 files, measured from build:esm on 2026-10-28)",
+    "limit": "1650 kB"
   },
   {
-    "path": "dist/excalidraw-assets/locales",
-    "name": "dist/excalidraw-assets/locales",
-    "limit": "290 kB"
-  },
-  {
-    "path": "dist/excalidraw-assets/vendor-*.js",
-    "name": "dist/excalidraw-assets/vendor*.js",
-    "limit": "900 kB"
+    "path": "dist/prod/index.css",
+    "name": "production CSS (baseline: 27.1 kB gzip, measured from build:esm on 2026-10-28)",
+    "limit": "40 kB"
   }
 ]
