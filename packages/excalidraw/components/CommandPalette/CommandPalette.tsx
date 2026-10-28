@@ -49,6 +49,7 @@ import {
   bucketFillIcon,
   ExportImageIcon,
   mermaidLogoIcon,
+  templateIcon,
   brainIconThin,
   LibraryIcon,
   historyCommandIcon,
@@ -593,6 +594,20 @@ function CommandPaletteInner({
               openDialog: {
                 name: "ttd",
                 tab: "mermaid",
+              },
+            }));
+          },
+        },
+        {
+          label: `${t("toolBar.templateGallery")}...`,
+          category: DEFAULT_CATEGORIES.tools,
+          icon: templateIcon,
+          viewMode: false,
+          perform: () => {
+            setAppState((state) => ({
+              ...state,
+              openDialog: {
+                name: "templateGallery",
               },
             }));
           },

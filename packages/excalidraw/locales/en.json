@@ -331,7 +331,8 @@
     "hand": "Hand (panning tool)",
     "extraTools": "More tools",
     "mermaidToExcalidraw": "Mermaid to Excalidraw",
-    "convertElementType": "Toggle shape type"
+    "convertElementType": "Toggle shape type",
+    "templateGallery": "Workshop templates"
   },
   "element": {
     "rectangle": "Rectangle",
@@ -734,5 +735,38 @@
     "spacebar": "Space",
     "delete": "Delete",
     "mmb": "Scroll wheel"
+  },
+  "templateGallery": {
+    "title": "Workshop templates",
+    "description": "Pick a template to add it to your scene. Your existing drawing stays as it is.",
+    "templates": "Templates",
+    "preview": "Preview",
+    "insert": "Insert",
+    "note": "Add a note",
+    "retrospective": {
+      "label": "Retrospective",
+      "description": "What went well, what to improve, and action items.",
+      "wentWell": "Went well",
+      "toImprove": "To improve",
+      "actionItems": "Action items"
+    },
+    "decisionMatrix": {
+      "label": "Decision matrix",
+      "description": "Compare options against impact, effort and risk.",
+      "option": "Option",
+      "impact": "Impact",
+      "effort": "Effort",
+      "risk": "Risk",
+      "score": "Score",
+      "optionName": "Option {{letter}}"
+    },
+    "storyMap": {
+      "label": "Story map",
+      "description": "Activities along the user journey with stories below.",
+      "journey": "User journey",
+      "activity": "Activity {{n}}",
+      "story": "User story",
+      "release": "Release 1"
+    }
   }
 }
