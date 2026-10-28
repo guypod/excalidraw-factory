@@ -1,0 +1,26 @@
+schemaVersion: 1
+requestChangesAt: major
+effort: low
+ignore:
+  - .tessl/plugins/**
+  - "**/tessl__*"
+  - "**/tessl__*/**"
+lenses:
+  - ref: tessl/code-review@0.5.0#review-correctness-and-data-integrity
+  - ref: tessl/code-review@0.5.0#review-maintainability-and-code-quality
+  - ref: tessl/code-review@0.5.0#review-scale-and-resilience
+  - ref: tessl/code-review@0.5.0#review-security-and-privacy
+  - ref: ./review-lenses/scene-history-integrity/SKILL.md
+    globs:
+      - packages/excalidraw/**
+      - packages/element/**
+      - packages/common/**
+      - excalidraw-app/**
+  - ref: ./review-lenses/accessible-canvas-workflows/SKILL.md
+    globs:
+      - packages/excalidraw/**
+      - excalidraw-app/**
+  - ref: ./review-lenses/export-persistence-local-first/SKILL.md
+    globs:
+      - packages/excalidraw/**
+      - excalidraw-app/**
