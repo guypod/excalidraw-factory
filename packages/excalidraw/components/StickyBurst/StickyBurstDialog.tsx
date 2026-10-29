@@ -99,6 +99,10 @@ export const StickyBurstDialog = ({ onClose }: { onClose: () => void }) => {
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === KEYS.ENTER && event[KEYS.CTRL_OR_CMD]) {
+      // leave an active IME composition alone instead of submitting it
+      if (event.nativeEvent.isComposing || event.keyCode === 229) {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       insertNotes();

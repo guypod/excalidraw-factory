@@ -305,6 +305,15 @@ describe("<StickyBurstDialog/>", () => {
     ]);
 
     typeLines("only note");
+    fireEvent.keyDown(input, {
+      key: KEYS.ENTER,
+      ctrlKey: true,
+      isComposing: true,
+    });
+    fireEvent.keyDown(input, { key: KEYS.ENTER, ctrlKey: true, keyCode: 229 });
+    expect(getDialog()).not.toBeNull();
+    expect(h.elements.filter(isTextElement)).toEqual([]);
+
     fireEvent.keyDown(input, { key: KEYS.ENTER, ctrlKey: true });
     expect(getDialog()).toBeNull();
     expect(
