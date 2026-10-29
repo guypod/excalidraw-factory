@@ -117,8 +117,16 @@ describe("viewport bookmark helpers", () => {
 
   it("keeps each board's bookmarks separate", () => {
     const bookmark = { id: "a", name: "A", centerX: 1, centerY: 2, zoom: 1 };
-    updateViewportBookmarks("/#room=one", () => [bookmark]);
-    updateViewportBookmarks("/#room=two", () => []);
+    updateViewportBookmarks("/#room=one", { type: "add", bookmark });
+    updateViewportBookmarks("/#room=two", {
+      type: "add",
+      bookmark: { ...bookmark, id: "b" },
+    });
+    updateViewportBookmarks("/#room=two", {
+      type: "remove",
+      id: "b",
+      name: "A",
+    });
     expect(loadViewportBookmarks("/#room=one").value).toEqual([bookmark]);
     expect(loadViewportBookmarks("/#room=two").value).toEqual([]);
   });
@@ -138,15 +146,147 @@ describe("viewport bookmark helpers", () => {
     );
     expect(loadViewportBookmarks("/")).toEqual({
       error: null,
+      rejected: [],
       value: [{ id: "ok", name: "Fine", centerX: 1, centerY: 1, zoom: 1 }],
     });
   });
 
   it("reports unreadable storage instead of throwing", () => {
     localStorage.setItem(VIEWPORT_BOOKMARKS_STORAGE_KEY, "{not json");
-    expect(loadViewportBookmarks("/")).toEqual({ error: "load", value: [] });
+    expect(loadViewportBookmarks("/")).toEqual({
+      error: "load",
+      rejected: [],
+      value: [],
+    });
     // a later save replaces the corrupt data
-    expect(updateViewportBookmarks("/", () => []).error).toBe(null);
+    expect(
+      updateViewportBookmarks("/", {
+        type: "add",
+        bookmark: { id: "a", name: "A", centerX: 0, centerY: 0, zoom: 1 },
+      }).error,
+    ).toBe(null);
+  });
+
+  it("replays failed changes onto other tabs' stored changes", () => {
+    const at = (id: string, name = id) => ({
+      id,
+      name,
+      centerX: 0,
+      centerY: 0,
+      zoom: 1,
+    });
+    updateViewportBookmarks("/", { type: "add", bookmark: at("keep") });
+    updateViewportBookmarks("/", { type: "add", bookmark: at("gone") });
+    const stored = localStorage.getItem(VIEWPORT_BOOKMARKS_STORAGE_KEY)!;
+
+    // this tab's writes fail
+    const setItem = vi
+      .spyOn(window.localStorage, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError");
+      });
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    updateViewportBookmarks("/", { type: "add", bookmark: at("mine") });
+    updateViewportBookmarks("/", {
+      type: "rename",
+      id: "keep",
+      from: "keep",
+      name: "Kept",
+    });
+    setItem.mockRestore();
+
+    // meanwhile another tab adds one and removes another
+    localStorage.setItem(
+      VIEWPORT_BOOKMARKS_STORAGE_KEY,
+      JSON.stringify({ "/": [...JSON.parse(stored)["/"], at("other")] }),
+    );
+    localStorage.setItem(
+      VIEWPORT_BOOKMARKS_STORAGE_KEY,
+      JSON.stringify({
+        "/": JSON.parse(localStorage.getItem(VIEWPORT_BOOKMARKS_STORAGE_KEY)!)[
+          "/"
+        ].filter((entry: { id: string }) => entry.id !== "gone"),
+      }),
+    );
+
+    const loaded = loadViewportBookmarks("/");
+    expect(loaded.error).toBe("save");
+    expect(loaded.value.map((entry) => entry.name)).toEqual([
+      "Kept",
+      "other",
+      "mine",
+    ]);
+
+    // the next successful write stores both tabs' changes
+    const result = updateViewportBookmarks("/", {
+      type: "add",
+      bookmark: at("later"),
+    });
+    expect(result).toMatchObject({ error: null, rejected: [] });
+    expect(storedFor("/").map((entry: { name: string }) => entry.name)).toEqual(
+      ["Kept", "other", "mine", "later"],
+    );
+    vi.restoreAllMocks();
+  });
+
+  it("reports changes another tab made impossible instead of applying them", () => {
+    const at = (id: string, name = id) => ({
+      id,
+      name,
+      centerX: 0,
+      centerY: 0,
+      zoom: 1,
+    });
+    // another tab removed "a" and renamed "b" after this tab loaded them
+    localStorage.setItem(
+      VIEWPORT_BOOKMARKS_STORAGE_KEY,
+      JSON.stringify({ "/": [at("b", "Theirs")] }),
+    );
+    const rename = updateViewportBookmarks("/", {
+      type: "rename",
+      id: "a",
+      from: "a",
+      name: "Mine",
+    });
+    expect(rename.rejected).toMatchObject([{ reason: "missing" }]);
+    const conflict = updateViewportBookmarks("/", {
+      type: "rename",
+      id: "b",
+      from: "b",
+      name: "Mine",
+    });
+    expect(conflict.rejected).toMatchObject([
+      { reason: "conflict", current: { name: "Theirs" } },
+    ]);
+    const remove = updateViewportBookmarks("/", {
+      type: "remove",
+      id: "b",
+      name: "b",
+    });
+    expect(remove.rejected).toMatchObject([{ reason: "conflict" }]);
+    // nothing was recreated, renamed or removed
+    expect(storedFor("/")).toEqual([at("b", "Theirs")]);
+  });
+
+  it("rejects an add over the limit instead of dropping it", () => {
+    localStorage.setItem(
+      VIEWPORT_BOOKMARKS_STORAGE_KEY,
+      JSON.stringify({
+        "/": Array.from({ length: 50 }, (_, index) => ({
+          id: `${index}`,
+          name: `View ${index}`,
+          centerX: 0,
+          centerY: 0,
+          zoom: 1,
+        })),
+      }),
+    );
+    const result = updateViewportBookmarks("/", {
+      type: "add",
+      bookmark: { id: "new", name: "New", centerX: 0, centerY: 0, zoom: 1 },
+    });
+    expect(result.rejected).toMatchObject([{ reason: "limit" }]);
+    expect(storedFor("/")).toHaveLength(50);
   });
 
   it("picks the first free default name", () => {
@@ -300,10 +440,16 @@ describe("<ViewportBookmarks/>", () => {
   it("keeps bookmarks another tab saved while the panel was open", async () => {
     await open();
     // another tab saves to the same board after this panel loaded
-    updateViewportBookmarks(getBoardKey(), (current) => [
-      ...current,
-      { id: "other", name: "Other tab", centerX: 0, centerY: 0, zoom: 1 },
-    ]);
+    updateViewportBookmarks(getBoardKey(), {
+      type: "add",
+      bookmark: {
+        id: "other",
+        name: "Other tab",
+        centerX: 0,
+        centerY: 0,
+        zoom: 1,
+      },
+    });
     saveView("This tab");
     expect(storedFor().map((b: { name: string }) => b.name)).toEqual([
       "Other tab",
@@ -314,15 +460,103 @@ describe("<ViewportBookmarks/>", () => {
 
   it("shows another tab's changes when storage changes", async () => {
     await open();
-    updateViewportBookmarks(getBoardKey(), () => [
-      { id: "other", name: "Other tab", centerX: 0, centerY: 0, zoom: 1 },
-    ]);
+    updateViewportBookmarks(getBoardKey(), {
+      type: "add",
+      bookmark: {
+        id: "other",
+        name: "Other tab",
+        centerX: 0,
+        centerY: 0,
+        zoom: 1,
+      },
+    });
     act(() => {
       window.dispatchEvent(
         new StorageEvent("storage", { key: VIEWPORT_BOOKMARKS_STORAGE_KEY }),
       );
     });
     expect(getBookmarkButton("Other tab")).toBeTruthy();
+  });
+
+  it("keeps another tab's changes made after a failed write", async () => {
+    const setItem = vi
+      .spyOn(window.localStorage, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError");
+      });
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    await open();
+    saveView("Unsaved");
+    fireEvent.keyDown(getPanel()!, { key: KEYS.ESCAPE });
+    setItem.mockRestore();
+
+    // another tab stores a bookmark while this tab's change is pending
+    localStorage.setItem(
+      VIEWPORT_BOOKMARKS_STORAGE_KEY,
+      JSON.stringify({
+        [getBoardKey()]: [
+          { id: "other", name: "Other tab", centerX: 0, centerY: 0, zoom: 1 },
+        ],
+      }),
+    );
+    await open();
+    expect(getBookmarkButton("Other tab")).toBeTruthy();
+    expect(getBookmarkButton("Unsaved")).toBeTruthy();
+
+    saveView("Stored");
+    expect(storedFor().map((b: { name: string }) => b.name)).toEqual([
+      "Other tab",
+      "Unsaved",
+      "Stored",
+    ]);
+  });
+
+  it("reports a save the limit rejected instead of announcing it", async () => {
+    await open();
+    // another tab fills the board after this panel loaded
+    localStorage.setItem(
+      VIEWPORT_BOOKMARKS_STORAGE_KEY,
+      JSON.stringify({
+        [getBoardKey()]: Array.from({ length: 50 }, (_, index) => ({
+          id: `${index}`,
+          name: `Other ${index}`,
+          centerX: 0,
+          centerY: 0,
+          zoom: 1,
+        })),
+      }),
+    );
+    saveView("Too many");
+    expect(storedFor()).toHaveLength(50);
+    expect(screen.queryByRole("button", { name: "Too many" })).toBe(null);
+    expect(
+      document.querySelector("[data-testid='viewport-bookmarks-rejected']")
+        ?.textContent,
+    ).toMatch(/Too many was not saved/);
+    expect(
+      screen.getByTestId("viewport-bookmarks-announcement").textContent,
+    ).not.toMatch(/Saved view/);
+    // the name is kept to retry
+    expect(
+      (screen.getByLabelText("Bookmark name") as HTMLInputElement).value,
+    ).toBe("Too many");
+  });
+
+  it("reports a rename of a bookmark another tab removed", async () => {
+    await open();
+    saveView("Old");
+    localStorage.setItem(VIEWPORT_BOOKMARKS_STORAGE_KEY, "{}");
+
+    fireEvent.keyDown(getBookmarkButton("Old"), { key: "F2" });
+    const input = screen.getByLabelText("New name for Old");
+    fireEvent.change(input, { target: { value: "New" } });
+    fireEvent.keyDown(input, { key: KEYS.ENTER });
+
+    expect(storedFor()).toBeUndefined();
+    expect(screen.queryByRole("button", { name: "New" })).toBe(null);
+    expect(
+      screen.getByTestId("viewport-bookmarks-announcement").textContent,
+    ).toMatch(/removed in another tab/);
   });
 
   it("leaves focus where the user moved it when a rename ends on blur", async () => {

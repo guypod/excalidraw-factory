@@ -89,42 +89,118 @@ const readAll = (): StoredBookmarks => {
 };
 
 /**
- * Lists whose last write failed, by board. They are what the user sees until
- * reload, so a closed and reopened panel does not lose them.
+ * A change made in this tab. Renames and removals carry the name the user saw,
+ * so a bookmark another tab renamed meanwhile is reported, not overwritten.
  */
-const unsavedBookmarks = new Map<string, ViewportBookmark[]>();
+export type BookmarkOperation =
+  | { type: "add"; bookmark: ViewportBookmark }
+  | { type: "rename"; id: string; from: string; name: string }
+  | { type: "remove"; id: string; name: string };
 
-export const clearUnsavedViewportBookmarks = () => unsavedBookmarks.clear();
+/**
+ * A change that was not applied. "limit": the board already has the maximum.
+ * "missing": another tab removed the bookmark. "conflict": another tab renamed
+ * it, `current` is its name now.
+ */
+export type RejectedBookmarkOperation = {
+  operation: BookmarkOperation;
+  reason: "limit" | "missing" | "conflict";
+  current?: ViewportBookmark;
+};
 
 export type BookmarkLoadResult = {
   value: ViewportBookmark[];
-  /** "load": storage could not be read. "save": the list is not stored yet */
+  /** "load": storage could not be read. "save": changes are not stored yet */
   error: "load" | "save" | null;
-};
-
-/** bookmarks of one board, from the unsaved list when a write failed */
-export const loadViewportBookmarks = (boardKey: string): BookmarkLoadResult => {
-  const unsaved = unsavedBookmarks.get(boardKey);
-  if (unsaved) {
-    return { value: unsaved, error: "save" };
-  }
-  try {
-    return { value: parseBookmarks(readAll()[boardKey]), error: null };
-  } catch (error: any) {
-    console.warn(`viewport bookmarks: could not read: ${error.message}`);
-    return { value: [], error: "load" };
-  }
+  /** this tab's changes that could not be applied to the current list */
+  rejected: RejectedBookmarkOperation[];
 };
 
 /**
- * Applies `update` to the board's current list, read again now so changes
- * another tab stored since the panel loaded are kept, and stores the result.
- * Other boards are left alone. When storage is unavailable or full the result
- * is kept in memory until reload.
+ * Applies `operations` in order to `bookmarks`, the board's list as stored
+ * now, so other tabs' additions, renames and removals are kept.
+ */
+const replayOperations = (
+  bookmarks: ViewportBookmark[],
+  operations: readonly BookmarkOperation[],
+) => {
+  let value = bookmarks;
+  const applied: BookmarkOperation[] = [];
+  const rejected: RejectedBookmarkOperation[] = [];
+  for (const operation of operations) {
+    if (operation.type === "add") {
+      if (value.some((entry) => entry.id === operation.bookmark.id)) {
+        applied.push(operation);
+      } else if (value.length >= MAX_BOOKMARKS_PER_BOARD) {
+        rejected.push({ operation, reason: "limit" });
+      } else {
+        value = [...value, operation.bookmark];
+        applied.push(operation);
+      }
+      continue;
+    }
+    const current = value.find((entry) => entry.id === operation.id);
+    const expectedName =
+      operation.type === "rename" ? operation.from : operation.name;
+    if (!current) {
+      rejected.push({ operation, reason: "missing" });
+    } else if (operation.type === "rename" && current.name === operation.name) {
+      applied.push(operation);
+    } else if (current.name !== expectedName) {
+      rejected.push({ operation, reason: "conflict", current });
+    } else {
+      value =
+        operation.type === "rename"
+          ? value.map((entry) =>
+              entry === current ? { ...entry, name: operation.name } : entry,
+            )
+          : value.filter((entry) => entry !== current);
+      applied.push(operation);
+    }
+  }
+  return { value, applied, rejected };
+};
+
+/**
+ * Changes whose write failed, by board. They are replayed onto the stored list
+ * on every load and write until one write succeeds or the page reloads, so a
+ * closed and reopened panel keeps them and other tabs' changes are not lost.
+ */
+const pendingOperations = new Map<string, BookmarkOperation[]>();
+
+export const clearUnsavedViewportBookmarks = () => pendingOperations.clear();
+
+/** bookmarks of one board, with this tab's unsaved changes applied */
+export const loadViewportBookmarks = (boardKey: string): BookmarkLoadResult => {
+  let stored: ViewportBookmark[];
+  try {
+    stored = parseBookmarks(readAll()[boardKey]);
+  } catch (error: any) {
+    console.warn(`viewport bookmarks: could not read: ${error.message}`);
+    return { value: [], error: "load", rejected: [] };
+  }
+  const pending = pendingOperations.get(boardKey);
+  if (!pending) {
+    return { value: stored, error: null, rejected: [] };
+  }
+  const { value, applied, rejected } = replayOperations(stored, pending);
+  // a change another tab made impossible is reported once, then dropped
+  if (applied.length) {
+    pendingOperations.set(boardKey, applied);
+  } else {
+    pendingOperations.delete(boardKey);
+  }
+  return { value, error: applied.length ? "save" : null, rejected };
+};
+
+/**
+ * Applies `operation`, after this tab's unsaved changes, to the board's list
+ * as stored now and stores the result. Other boards are left alone. When
+ * storage is unavailable or full the applied changes are kept to replay later.
  */
 export const updateViewportBookmarks = (
   boardKey: string,
-  update: (bookmarks: ViewportBookmark[]) => ViewportBookmark[],
+  operation: BookmarkOperation,
 ): BookmarkLoadResult => {
   let all: StoredBookmarks;
   try {
@@ -133,12 +209,13 @@ export const updateViewportBookmarks = (
     // unreadable data is replaced rather than blocking every later save
     all = {};
   }
-  const next = update(
-    unsavedBookmarks.get(boardKey) ?? parseBookmarks(all[boardKey]),
-  ).slice(0, MAX_BOOKMARKS_PER_BOARD);
+  const { value, applied, rejected } = replayOperations(
+    parseBookmarks(all[boardKey]),
+    [...(pendingOperations.get(boardKey) ?? []), operation],
+  );
   try {
-    if (next.length) {
-      all[boardKey] = next;
+    if (value.length) {
+      all[boardKey] = value;
     } else {
       delete all[boardKey];
     }
@@ -146,12 +223,16 @@ export const updateViewportBookmarks = (
       VIEWPORT_BOOKMARKS_STORAGE_KEY,
       JSON.stringify(all),
     );
-    unsavedBookmarks.delete(boardKey);
-    return { value: next, error: null };
+    pendingOperations.delete(boardKey);
+    return { value, error: null, rejected };
   } catch (error: any) {
     console.warn(`viewport bookmarks: could not save: ${error.message}`);
-    unsavedBookmarks.set(boardKey, next);
-    return { value: next, error: "save" };
+    if (applied.length) {
+      pendingOperations.set(boardKey, applied);
+    } else {
+      pendingOperations.delete(boardKey);
+    }
+    return { value, error: applied.length ? "save" : null, rejected };
   }
 };
 

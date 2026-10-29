@@ -44,6 +44,10 @@
   .ViewportBookmarks__error {
     color: var(--color-danger-text);
     font-size: 0.75rem;
+
+    p {
+      margin: 0;
+    }
   }
 
   .ViewportBookmarks__save {

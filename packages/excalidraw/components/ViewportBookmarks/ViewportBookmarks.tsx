@@ -24,6 +24,8 @@ import "./ViewportBookmarks.scss";
 
 import type {
   BookmarkLoadResult,
+  BookmarkOperation,
+  RejectedBookmarkOperation,
   ViewportBookmark,
 } from "./viewportBookmarkStore";
 
@@ -36,6 +38,38 @@ import type { AppClassProperties } from "../../types";
 export const viewportBookmarksAtom = atom<{
   editorId: AppClassProperties["id"];
 } | null>(null);
+
+/** why one of this tab's changes did not apply, in words */
+const describeRejection = ({
+  operation,
+  reason,
+  current,
+}: RejectedBookmarkOperation) => {
+  if (operation.type === "add") {
+    return t("viewportBookmarks.limitReached", {
+      name: operation.bookmark.name,
+      max: MAX_BOOKMARKS_PER_BOARD,
+    });
+  }
+  if (reason === "conflict" && current) {
+    return operation.type === "rename"
+      ? t("viewportBookmarks.renameConflict", {
+          name: operation.from,
+          newName: operation.name,
+          current: current.name,
+        })
+      : t("viewportBookmarks.removeConflict", {
+          name: operation.name,
+          current: current.name,
+        });
+  }
+  return operation.type === "rename"
+    ? t("viewportBookmarks.renameMissing", {
+        name: operation.from,
+        newName: operation.name,
+      })
+    : t("viewportBookmarks.removeMissing", { name: operation.name });
+};
 
 export const ViewportBookmarks = () => {
   const app = useApp();
@@ -62,6 +96,8 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
   const boardKey = getBoardKey(window.location, boardId);
   const [bookmarks, setBookmarks] = useState<ViewportBookmark[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // changes another tab made impossible, shown until the next change
+  const [rejections, setRejections] = useState<string[]>([]);
   const [nameInput, setNameInput] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState("");
@@ -88,6 +124,9 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
         ? t("viewportBookmarks.saveFailed")
         : null,
     );
+    if (result.rejected.length) {
+      setRejections(result.rejected.map(describeRejection));
+    }
   };
 
   // the board can change under the panel: opening another local board changes
@@ -104,6 +143,7 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
   }, []);
 
   useEffect(() => {
+    setRejections([]);
     showResult(loadViewportBookmarks(boardKey));
     // another tab may change this board's bookmarks while the panel is open
     const onStorage = (event: StorageEvent) => {
@@ -130,16 +170,20 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
   });
 
   /**
-   * Applies the change to the board's stored list as it is now, so bookmarks
-   * another tab saved meanwhile are kept. The change stays in memory until
-   * reload when storage refuses it.
+   * Applies the change to the board's stored list as it is now, so changes
+   * another tab stored meanwhile are kept. The change is kept to replay until
+   * reload when storage refuses it. Success is announced only when the change
+   * applied; returns whether it did.
    */
-  const commit = (
-    update: (current: ViewportBookmark[]) => ViewportBookmark[],
-    message: string,
-  ) => {
-    showResult(updateViewportBookmarks(boardKey, update));
-    setAnnouncement(message);
+  const commit = (operation: BookmarkOperation, message: string) => {
+    const result = updateViewportBookmarks(boardKey, operation);
+    setRejections([]);
+    showResult(result);
+    const rejection = result.rejected.find(
+      (rejected) => rejected.operation === operation,
+    );
+    setAnnouncement(rejection ? describeRejection(rejection) : message);
+    return !rejection;
   };
 
   const atLimit = bookmarks.length >= MAX_BOOKMARKS_PER_BOARD;
@@ -152,11 +196,15 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
       normalizeBookmarkName(nameInput) ||
       getDefaultBookmarkName(bookmarks, t("viewportBookmarks.defaultName"));
     const bookmark = createViewportBookmark(name, app.state);
-    commit(
-      (current) => [...current, bookmark],
-      t("viewportBookmarks.announceSaved", { name: bookmark.name }),
-    );
-    setNameInput("");
+    // a rejected name stays in the input so the user can retry
+    if (
+      commit(
+        { type: "add", bookmark },
+        t("viewportBookmarks.announceSaved", { name: bookmark.name }),
+      )
+    ) {
+      setNameInput("");
+    }
   };
 
   const jump = (bookmark: ViewportBookmark) => {
@@ -195,10 +243,7 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
       return;
     }
     commit(
-      (current) =>
-        current.map((entry) =>
-          entry.id === bookmark.id ? { ...entry, name } : entry,
-        ),
+      { type: "rename", id: bookmark.id, from: bookmark.name, name },
       t("viewportBookmarks.announceRenamed", { name }),
     );
   };
@@ -208,7 +253,7 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
     const next = bookmarks.filter((entry) => entry.id !== bookmark.id);
     focusIdRef.current = (next[index] ?? next[index - 1])?.id ?? "";
     commit(
-      (current) => current.filter((entry) => entry.id !== bookmark.id),
+      { type: "remove", id: bookmark.id, name: bookmark.name },
       t("viewportBookmarks.announceRemoved", { name: bookmark.name }),
     );
   };
@@ -303,6 +348,17 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
           data-testid="viewport-bookmarks-error"
         >
           {error}
+        </div>
+      )}
+      {rejections.length > 0 && (
+        <div
+          className="ViewportBookmarks__error"
+          role="alert"
+          data-testid="viewport-bookmarks-rejected"
+        >
+          {rejections.map((message, index) => (
+            <p key={index}>{message}</p>
+          ))}
         </div>
       )}
       {bookmarks.length === 0 ? (
