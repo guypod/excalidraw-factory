@@ -3,6 +3,7 @@ import fuzzy from "fuzzy";
 import { useEffect, useRef, useMemo, useState } from "react";
 
 import {
+  CANVAS_OUTLINE_TAB,
   DEFAULT_SIDEBAR,
   EVENT,
   KEYS,
@@ -45,6 +46,7 @@ import {
   LockedIcon,
   UnlockedIcon,
   searchIcon,
+  outlineIcon,
   boltIcon,
   bucketFillIcon,
   ExportImageIcon,
@@ -454,6 +456,21 @@ function CommandPaletteInner({
           viewMode: true,
           perform: () => {
             actionManager.executeAction(actionToggleSearchMenu);
+          },
+        },
+        {
+          label: t("canvasOutline.title"),
+          keywords: ["outline", "navigate", "frames", "labels", "toc"],
+          category: DEFAULT_CATEGORIES.app,
+          icon: outlineIcon,
+          viewMode: true,
+          perform: () => {
+            setAppState({
+              openSidebar: {
+                name: DEFAULT_SIDEBAR.name,
+                tab: CANVAS_OUTLINE_TAB,
+              },
+            });
           },
         },
         {

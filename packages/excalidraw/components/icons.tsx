@@ -2475,6 +2475,20 @@ export const templateIcon = createIcon(
   tablerIconProps,
 );
 
+// list-tree
+export const outlineIcon = createIcon(
+  <g strokeWidth="1.25">
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M9 6h11" />
+    <path d="M12 12h8" />
+    <path d="M15 18h5" />
+    <path d="M5 6v.01" />
+    <path d="M8 12v.01" />
+    <path d="M11 18v.01" />
+  </g>,
+  tablerIconProps,
+);
+
 // empty placeholder icon (used for alignment in menus)
 export const emptyIcon = <div style={{ width: "1rem", height: "1rem" }} />;
 
