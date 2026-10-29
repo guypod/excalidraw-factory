@@ -100,6 +100,7 @@ import Collab, {
 } from "./collab/Collab";
 import { AppFooter } from "./components/AppFooter";
 import { AppMainMenu } from "./components/AppMainMenu";
+import { BoardShelfDialog } from "./components/BoardShelfDialog";
 import { AppWelcomeScreen } from "./components/AppWelcomeScreen";
 import {
   ExportToExcalidrawPlus,
@@ -114,6 +115,7 @@ import {
   isCollaborationLink,
 } from "./data";
 
+import { syncActiveBoardFromStorage } from "./data/boardShelf";
 import { updateStaleImageStatuses } from "./data/FileManager";
 import { FileStatusStore } from "./data/fileStatusStore";
 import {
@@ -573,6 +575,7 @@ const ExcalidrawWrapper = () => {
             ...localDataState,
             captureUpdate: CaptureUpdateAction.NEVER,
           });
+          syncActiveBoardFromStorage();
           LibraryIndexedDBAdapter.load().then((data) => {
             if (data) {
               excalidrawAPI.updateLibrary({
@@ -1055,6 +1058,13 @@ const ExcalidrawWrapper = () => {
             }
           }}
         />
+
+        {excalidrawAPI && (
+          <BoardShelfDialog
+            excalidrawAPI={excalidrawAPI}
+            isCollaborating={isCollaborating}
+          />
+        )}
 
         <AppSidebar />
 
