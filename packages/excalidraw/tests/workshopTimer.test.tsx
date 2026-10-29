@@ -197,6 +197,63 @@ describe("<WorkshopTimer/>", () => {
     expect(h.elements[0].isDeleted).toBe(false);
   });
 
+  it("expires when Pause lands after the deadline but before the next tick", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    await open();
+    fireEvent.change(getMinutesInput(), { target: { value: "1" } });
+    clickButton("Start");
+    // move the clock past the deadline without running the interval
+    act(() => {
+      vi.setSystemTime(Date.now() + 60000);
+    });
+    clickButton("Pause");
+    expect(getPanel()!.classList).toContain("WorkshopTimer--expired");
+    expect(getAnnouncement()).toBe("Time is up");
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("keeps focus on a timer control when a transition removes the focused one", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
+    await open();
+    fireEvent.change(getMinutesInput(), { target: { value: "1" } });
+    const focusedName = () => document.activeElement?.textContent;
+
+    fireEvent.keyDown(getMinutesInput(), { key: KEYS.ENTER });
+    expect(focusedName()).toBe("Pause");
+
+    clickButton("Pause");
+    expect(focusedName()).toBe("Resume");
+
+    clickButton("Resume");
+    expect(focusedName()).toBe("Pause");
+
+    advance(60000);
+    expect(getPanel()!.classList).toContain("WorkshopTimer--expired");
+    expect(focusedName()).toBe("Reset");
+
+    clickButton("Reset");
+    expect(focusedName()).toBe("Start");
+
+    clickButton("Start");
+    expect(focusedName()).toBe("Pause");
+  });
+
+  it("keeps Enter and Space on timer buttons away from editor shortcuts", async () => {
+    const text = API.createElement({ type: "text", text: "hi" });
+    API.setElements([text]);
+    API.setSelectedElements([text]);
+    await open();
+    clickButton("Start");
+    const pause = screen.getByRole("button", { name: "Pause" });
+
+    const enter = fireEvent.keyDown(pause, { key: KEYS.ENTER });
+    expect(enter).toBe(true);
+    expect(h.state.editingTextElement).toBe(null);
+
+    const space = fireEvent.keyDown(pause, { key: KEYS.SPACE });
+    expect(space).toBe(true);
+  });
+
   it("closes with Escape, returns focus to the editor and stops the timer", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval", "Date"] });
     await open();

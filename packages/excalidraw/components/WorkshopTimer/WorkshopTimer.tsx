@@ -1,5 +1,11 @@
 import clsx from "clsx";
-import { useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { KEYS } from "@excalidraw/common";
 
@@ -72,14 +78,50 @@ const WorkshopTimerPanel = ({ onClose }: { onClose: () => void }) => {
   const [endsAt, setEndsAt] = useState<number | null>(null);
   // only state changes are announced, never the ticking time
   const [announcement, setAnnouncement] = useState("");
-  const startButtonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const primaryButtonRef = useRef<HTMLButtonElement>(null);
+  const resetButtonRef = useRef<HTMLButtonElement>(null);
   const minutesInputRef = useRef<HTMLInputElement>(null);
+  // set when a transition starts while focus is in the panel
+  const keepFocusInPanelRef = useRef(false);
 
   // the user asked for the timer, so take them to it once. Nothing later in
   // the timer's life, expiry included, moves focus
   useEffect(() => {
     minutesInputRef.current?.focus();
   }, []);
+
+  // a transition can remove the focused control (the minutes field, Start,
+  // Pause, Resume or Reset). When focus was in the panel, hand it to the
+  // control that took its place. Focus elsewhere, such as on the canvas, is
+  // left alone
+  useLayoutEffect(() => {
+    if (!keepFocusInPanelRef.current) {
+      return;
+    }
+    keepFocusInPanelRef.current = false;
+    if (!panelRef.current?.contains(document.activeElement)) {
+      const primary = primaryButtonRef.current;
+      (primary && !primary.disabled
+        ? primary
+        : minutesInputRef.current ?? resetButtonRef.current
+      )?.focus();
+    }
+  }, [status]);
+
+  const changeStatus = useCallback((next: TimerStatus) => {
+    keepFocusInPanelRef.current = !!panelRef.current?.contains(
+      document.activeElement,
+    );
+    setStatus(next);
+  }, []);
+
+  const expire = useCallback(() => {
+    setRemainingMs(0);
+    setEndsAt(null);
+    changeStatus("expired");
+    setAnnouncement(t("workshopTimer.announceExpired"));
+  }, [changeStatus]);
 
   // the interval belongs to this panel, so closing the timer or unmounting
   // the editor stops it
@@ -90,17 +132,14 @@ const WorkshopTimerPanel = ({ onClose }: { onClose: () => void }) => {
     const tick = () => {
       const left = endsAt - Date.now();
       if (left <= 0) {
-        setRemainingMs(0);
-        setEndsAt(null);
-        setStatus("expired");
-        setAnnouncement(t("workshopTimer.announceExpired"));
+        expire();
       } else {
         setRemainingMs(left);
       }
     };
     const interval = window.setInterval(tick, 250);
     return () => window.clearInterval(interval);
-  }, [status, endsAt]);
+  }, [status, endsAt, expire]);
 
   const minutes = parseTimerMinutes(minutesInput);
 
@@ -111,7 +150,7 @@ const WorkshopTimerPanel = ({ onClose }: { onClose: () => void }) => {
     const duration = minutes * 60000;
     setRemainingMs(duration);
     setEndsAt(Date.now() + duration);
-    setStatus("running");
+    changeStatus("running");
     setAnnouncement(
       t("workshopTimer.announceStarted", {
         duration: formatTimerDuration(duration),
@@ -121,26 +160,30 @@ const WorkshopTimerPanel = ({ onClose }: { onClose: () => void }) => {
 
   const pause = () => {
     if (endsAt !== null) {
-      setRemainingMs(Math.max(0, endsAt - Date.now()));
+      const left = endsAt - Date.now();
+      // the deadline passed before the next tick saw it
+      if (left <= 0) {
+        expire();
+        return;
+      }
+      setRemainingMs(left);
     }
     setEndsAt(null);
-    setStatus("paused");
+    changeStatus("paused");
     setAnnouncement(t("workshopTimer.announcePaused"));
   };
 
   const resume = () => {
     setEndsAt(Date.now() + remainingMs);
-    setStatus("running");
+    changeStatus("running");
     setAnnouncement(t("workshopTimer.announceResumed"));
   };
 
   const reset = () => {
     setEndsAt(null);
     setRemainingMs((minutes ?? DEFAULT_TIMER_MINUTES) * 60000);
-    setStatus("idle");
+    changeStatus("idle");
     setAnnouncement(t("workshopTimer.announceReset"));
-    // the Reset button goes away, so hand focus to Start rather than lose it
-    requestAnimationFrame(() => startButtonRef.current?.focus());
   };
 
   const close = () => {
@@ -149,9 +192,11 @@ const WorkshopTimerPanel = ({ onClose }: { onClose: () => void }) => {
   };
 
   const onKeyDown = (event: React.KeyboardEvent) => {
+    // keys in the panel keep their native meaning (Enter and Space activate
+    // a button, Tab moves focus) and never reach editor shortcuts
+    event.stopPropagation();
     if (event.key === KEYS.ESCAPE) {
       event.preventDefault();
-      event.stopPropagation();
       close();
     }
   };
@@ -161,6 +206,7 @@ const WorkshopTimerPanel = ({ onClose }: { onClose: () => void }) => {
 
   return (
     <section
+      ref={panelRef}
       className={clsx("WorkshopTimer", {
         "WorkshopTimer--expired": status === "expired",
       })}
@@ -212,7 +258,7 @@ const WorkshopTimerPanel = ({ onClose }: { onClose: () => void }) => {
       <div className="WorkshopTimer__actions">
         {status === "idle" && (
           <button
-            ref={startButtonRef}
+            ref={primaryButtonRef}
             type="button"
             className="WorkshopTimer__button"
             onClick={start}
@@ -223,6 +269,7 @@ const WorkshopTimerPanel = ({ onClose }: { onClose: () => void }) => {
         )}
         {status === "running" && (
           <button
+            ref={primaryButtonRef}
             type="button"
             className="WorkshopTimer__button"
             onClick={pause}
@@ -232,6 +279,7 @@ const WorkshopTimerPanel = ({ onClose }: { onClose: () => void }) => {
         )}
         {status === "paused" && (
           <button
+            ref={primaryButtonRef}
             type="button"
             className="WorkshopTimer__button"
             onClick={resume}
@@ -241,6 +289,7 @@ const WorkshopTimerPanel = ({ onClose }: { onClose: () => void }) => {
         )}
         {status !== "idle" && (
           <button
+            ref={resetButtonRef}
             type="button"
             className="WorkshopTimer__button"
             onClick={reset}
