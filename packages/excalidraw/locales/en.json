@@ -236,6 +236,21 @@
     "emptyTitle": "No frames to present",
     "emptyHint": "Add a frame and put something in it, and it will show up here."
   },
+  "workshopTimer": {
+    "title": "Workshop timer",
+    "close": "Close timer",
+    "minutes": "Minutes",
+    "start": "Start",
+    "pause": "Pause",
+    "resume": "Resume",
+    "reset": "Reset",
+    "expired": "Time is up",
+    "announceStarted": "Timer started for {{duration}}",
+    "announcePaused": "Timer paused",
+    "announceResumed": "Timer resumed",
+    "announceReset": "Timer reset",
+    "announceExpired": "Time is up"
+  },
   "buttons": {
     "clearReset": "Reset the canvas",
     "exportJSON": "Export to file",
