@@ -897,5 +897,35 @@
       "bold": "Bold",
       "muted": "Muted"
     }
+  },
+  "readabilityReport": {
+    "title": "Readability report",
+    "open": "Check readability",
+    "findings": "Checked text",
+    "empty": "Select text, or shapes and arrows with labels, to check readability.",
+    "summaryIssues": "{{count}} of {{total}} text(s) may be hard to read.",
+    "summaryUnchecked": "{{count}} of {{total}} text(s) could not be fully checked.",
+    "summaryReadable": "All {{total}} checked text(s) look readable.",
+    "skipped": "{{count}} selected element(s) without text were not checked.",
+    "readable": "Readable",
+    "needsAttention": "Needs attention",
+    "notChecked": "Not fully checked",
+    "emptyText": "(empty text)",
+    "fontSize": "Font size {{size}}.",
+    "tinyText": "Tiny text: font size {{size}} is below {{min}}.",
+    "contrast": "Contrast {{ratio}}:1 (needs {{required}}:1).",
+    "lowContrast": "Low contrast: {{ratio}}:1, needs at least {{required}}:1.",
+    "limitations": {
+      "transparentText": "Contrast not checked: the text is semi-transparent.",
+      "transparentBackground": "Contrast not checked: the background behind the text is semi-transparent.",
+      "patternBackground": "Contrast not checked: the background is a hatch or pattern fill, not a solid color.",
+      "transparentCanvas": "Contrast not checked: the canvas background is transparent."
+    },
+    "notesTitle": "About this report",
+    "notes": {
+      "advisory": "This report is advisory. It does not change your drawing.",
+      "background": "Contrast is measured against the text's own container fill, or the canvas background when the container has none. Shapes, images or frames underneath the text are not taken into account, and font size is checked at 100% zoom.",
+      "unmeasured": "Some contrast could not be measured because a color is transparent or the background is not a single solid color. Check those by eye."
+    }
   }
 }

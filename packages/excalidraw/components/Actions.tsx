@@ -67,6 +67,7 @@ import { Tooltip } from "./Tooltip";
 import DropdownMenu from "./dropdownMenu/DropdownMenu";
 import { PropertiesPopover } from "./PropertiesPopover";
 import { getStylePresetTargets } from "./StylePresets/stylePresets";
+import { hasReadabilityTargets } from "./ReadabilityReport/readability";
 import {
   EmbedIcon,
   extraToolsIcon,
@@ -75,6 +76,7 @@ import {
   templateIcon,
   stickyNotesIcon,
   stylePresetsIcon,
+  readabilityReportIcon,
   laserPointerToolIcon,
   MagicIcon,
   LassoIcon,
@@ -156,6 +158,28 @@ const StylePresetsButton = ({
       aria-label={t("stylePresets.open")}
       data-testid="style-presets-button"
       onClick={() => app.setOpenDialog({ name: "stylePresets" })}
+    />
+  );
+};
+
+const ReadabilityReportButton = ({
+  targetElements,
+  app,
+}: {
+  targetElements: ExcalidrawElement[];
+  app: AppClassProperties;
+}) => {
+  if (!hasReadabilityTargets(targetElements)) {
+    return null;
+  }
+  return (
+    <ToolButton
+      type="button"
+      icon={readabilityReportIcon}
+      title={t("readabilityReport.open")}
+      aria-label={t("readabilityReport.open")}
+      data-testid="readability-report-button"
+      onClick={() => app.setOpenDialog({ name: "readabilityReport" })}
     />
   );
 };
@@ -335,6 +359,10 @@ export const SelectedShapeActions = ({
             {showCropEditorAction && renderAction("cropEditor")}
             {showLineEditorAction && renderAction("toggleLinearEditor")}
             <StylePresetsButton targetElements={targetElements} app={app} />
+            <ReadabilityReportButton
+              targetElements={targetElements}
+              app={app}
+            />
           </div>
         </fieldset>
       )}
@@ -776,6 +804,10 @@ const CombinedExtraActions = ({
                   {showDuplicate && renderAction("duplicateSelection")}
                   {showDelete && renderAction("deleteSelectedElements")}
                   <StylePresetsButton
+                    targetElements={targetElements}
+                    app={app}
+                  />
+                  <ReadabilityReportButton
                     targetElements={targetElements}
                     app={app}
                   />

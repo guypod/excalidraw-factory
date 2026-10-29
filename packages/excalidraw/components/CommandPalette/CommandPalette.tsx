@@ -43,6 +43,7 @@ import { InlineIcon } from "../InlineIcon";
 import { TextField } from "../TextField";
 import { getSelectedElements } from "../../scene";
 import { getStylePresetTargets } from "../StylePresets/stylePresets";
+import { hasReadabilityTargets } from "../ReadabilityReport/readability";
 import {
   LockedIcon,
   UnlockedIcon,
@@ -58,6 +59,7 @@ import {
   templateIcon,
   stickyNotesIcon,
   stylePresetsIcon,
+  readabilityReportIcon,
   brainIconThin,
   LibraryIcon,
   historyCommandIcon,
@@ -577,6 +579,21 @@ function CommandPaletteInner({
             setAppState({
               openDialog: {
                 name: "stylePresets",
+              },
+            });
+          },
+        },
+        {
+          label: `${t("readabilityReport.open")}...`,
+          keywords: ["readability", "contrast", "accessibility", "text"],
+          icon: readabilityReportIcon,
+          category: DEFAULT_CATEGORIES.elements,
+          predicate: (elements, appState) =>
+            hasReadabilityTargets(getSelectedElements(elements, appState)),
+          perform: () => {
+            setAppState({
+              openDialog: {
+                name: "readabilityReport",
               },
             });
           },
