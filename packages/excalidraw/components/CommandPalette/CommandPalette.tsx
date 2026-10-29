@@ -44,6 +44,7 @@ import { TextField } from "../TextField";
 import { getSelectedElements } from "../../scene";
 import { getStylePresetTargets } from "../StylePresets/stylePresets";
 import { hasReadabilityTargets } from "../ReadabilityReport/readability";
+import { hasTidyTargets } from "../TidyGrid/tidyGrid";
 import {
   LockedIcon,
   UnlockedIcon,
@@ -60,6 +61,7 @@ import {
   stickyNotesIcon,
   stylePresetsIcon,
   readabilityReportIcon,
+  tidyGridIcon,
   brainIconThin,
   LibraryIcon,
   historyCommandIcon,
@@ -594,6 +596,22 @@ function CommandPaletteInner({
             setAppState({
               openDialog: {
                 name: "readabilityReport",
+              },
+            });
+          },
+        },
+        {
+          label: `${t("tidyGrid.open")}...`,
+          keywords: ["tidy", "arrange", "grid", "rows", "columns", "layout"],
+          icon: tidyGridIcon,
+          category: DEFAULT_CATEGORIES.elements,
+          viewMode: false,
+          predicate: (elements, appState) =>
+            hasTidyTargets(getSelectedElements(elements, appState)),
+          perform: () => {
+            setAppState({
+              openDialog: {
+                name: "tidyGrid",
               },
             });
           },

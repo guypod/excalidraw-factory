@@ -1,0 +1,117 @@
+@use "../../css/variables.module" as *;
+
+.excalidraw {
+  .TidyGridDialog {
+    .TidyGrid__body {
+      display: flex;
+      gap: 1rem;
+
+      @include isMobile {
+        flex-direction: column;
+      }
+    }
+
+    .TidyGrid__controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      flex: 0 0 240px;
+
+      @include isMobile {
+        flex-basis: auto;
+      }
+    }
+
+    .TidyGrid__direction {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      margin: 0;
+      padding: 0;
+      border: none;
+
+      legend {
+        margin-bottom: 0.25rem;
+        font-weight: 600;
+      }
+
+      &:disabled {
+        opacity: 0.5;
+      }
+    }
+
+    .TidyGrid__radio {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+    }
+
+    .TidyGrid__field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      font-weight: 600;
+
+      input {
+        font: inherit;
+        font-weight: normal;
+        padding: 0.375rem 0.5rem;
+        border-radius: 6px;
+        border: 1px solid $color-gray-4;
+        background: var(--input-bg-color);
+        color: var(--text-primary-color);
+
+        &:focus-visible {
+          outline: none;
+          box-shadow: 0 0 0 2px var(--color-primary);
+        }
+
+        &:disabled {
+          opacity: 0.5;
+        }
+      }
+    }
+
+    .TidyGrid__status {
+      margin: 0;
+      font-size: 0.875rem;
+      color: var(--text-primary-color);
+    }
+
+    .TidyGrid__previewPanel {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      border-radius: 8px;
+      border: 1px solid $color-gray-4;
+      padding: 0.75rem;
+    }
+
+    .TidyGrid__preview {
+      flex: 1;
+      min-height: 240px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+
+      svg {
+        max-width: 100%;
+        max-height: 320px;
+      }
+    }
+
+    .TidyGrid__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 1rem;
+
+      .Dialog__action-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+  }
+}

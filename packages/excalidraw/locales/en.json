@@ -927,5 +927,22 @@
       "background": "Contrast is measured against the text's own container fill, or the canvas background when the container has none. Shapes, images or frames underneath the text are not taken into account, and font size is checked at 100% zoom.",
       "unmeasured": "Some contrast could not be measured because a color is transparent or the background is not a single solid color. Check those by eye."
     }
+  },
+  "tidyGrid": {
+    "title": "Tidy into grid",
+    "open": "Tidy into grid",
+    "direction": "Arrange in",
+    "directions": {
+      "rows": "Rows",
+      "columns": "Columns"
+    },
+    "perRow": "Items per row",
+    "perColumn": "Items per column",
+    "gap": "Gap",
+    "preview": "Preview",
+    "count": "{{count}} item(s) will be arranged. Groups and labels move together, and connected arrows follow.",
+    "empty": "Select two or more items to tidy them into a grid.",
+    "skipped": "{{count}} selected item(s) will stay in place: frames, locked items, and arrows connected to items outside them.",
+    "apply": "Arrange {{count}} item(s)"
   }
 }
