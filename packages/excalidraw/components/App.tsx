@@ -438,6 +438,11 @@ import ConvertElementTypePopup, {
   convertElementTypePopupAtom,
   convertElementTypes,
 } from "./ConvertElementTypePopup";
+import {
+  endFramePresentationForEditor,
+  isPresentingFrames,
+  subscribeToFramePresentation,
+} from "./FramePresentation";
 
 import { activeConfirmDialogAtom } from "./ActiveConfirmDialog";
 import BraveMeasureTextError from "./BraveMeasureTextError";
@@ -2146,6 +2151,7 @@ class App extends React.Component<AppProps, AppState> {
             this.state.viewModeEnabled ||
             this.state.openDialog?.name === "elementLinkSelector",
           "excalidraw--mobile": this.editorInterface.formFactor === "phone",
+          "excalidraw--presenting": isPresentingFrames(this.id),
         })}
         style={{
           ["--ui-pointerEvents" as any]: shouldBlockPointerEvents
@@ -3206,6 +3212,7 @@ class App extends React.Component<AppProps, AppState> {
     }
 
     this.editorLifecycleEvents.emit("editor:unmount");
+    endFramePresentationForEditor(this.id);
     this.props.onUnmount?.();
     this.props.onExcalidrawAPI?.(null);
 
@@ -3286,6 +3293,9 @@ class App extends React.Component<AppProps, AppState> {
         { passive: false },
       ),
       addEventListener(window, EVENT.MESSAGE, this.onWindowMessage, false),
+      // the presentation session is shared by every editor, so keep the
+      // `excalidraw--presenting` class in step when another editor takes it
+      subscribeToFramePresentation(this.id, () => this.triggerRender()),
       addEventListener(document, EVENT.POINTER_UP, this.removePointer, {
         passive: false,
       }), // #3553

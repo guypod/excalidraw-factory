@@ -45,6 +45,7 @@ import Footer from "./footer/Footer";
 import { isSidebarDockedAtom } from "./Sidebar/Sidebar";
 import MainMenu from "./main-menu/MainMenu";
 import { ActiveConfirmDialog } from "./ActiveConfirmDialog";
+import { FramePresentation } from "./FramePresentation";
 import { useEditorInterface, useStylesPanelMode } from "./App";
 import { OverwriteConfirmDialog } from "./OverwriteConfirm/OverwriteConfirm";
 import { sidebarRightIcon } from "./icons";
@@ -542,6 +543,7 @@ const LayerUI = ({
         />
       )}
       <ActiveConfirmDialog />
+      <FramePresentation />
       {appState.openDialog?.name === "elementLinkSelector" && (
         <ElementLinkDialog
           sourceElementId={appState.openDialog.sourceElementId}
