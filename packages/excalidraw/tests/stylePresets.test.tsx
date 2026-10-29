@@ -333,6 +333,61 @@ describe("<StylePresetsDialog/>", () => {
     expect(getById(rect.id)).toBe(rect);
   });
 
+  it("keeps dialog keys away from the editor so keyboard cancel and apply work on a labelled shape", async () => {
+    const [box, label] = API.createTextContainer({
+      label: { text: "keep me" },
+    });
+    API.setElements([box, label]);
+    API.setSelectedElements([box]);
+    const selectedElementIds = h.state.selectedElementIds;
+    const undoStackSize = API.getUndoStack().length;
+
+    // a key the editor acts on (Enter edits the selected shape's label) must
+    // not reach it, and must keep its default so the button still activates
+    const pressEnter = (button: HTMLElement) => {
+      button.focus();
+      expect(fireEvent.keyDown(button, { key: KEYS.ENTER })).toBe(true);
+      expect(h.state.editingTextElement).toBeNull();
+      // jsdom does not turn Enter on a button into a click, so do it here
+      fireEvent.click(button);
+    };
+
+    await openDialog();
+    const clean = queryByTestId(getDialog(), "style-preset-clean")!;
+    clean.focus();
+    fireEvent.keyDown(clean, { key: KEYS.ARROW_DOWN });
+    expect(
+      queryByTestId(getDialog(), "style-preset-sketch")!.getAttribute(
+        "aria-checked",
+      ),
+    ).toBe("true");
+    pressEnter(queryByTestId(getDialog(), "style-presets-cancel")!);
+    expect(getDialog()).toBeNull();
+    expect(getById(box.id)).toBe(box);
+    expect(getById(label.id)).toBe(label);
+    expect(h.state.selectedElementIds).toEqual(selectedElementIds);
+    expect(API.getUndoStack().length).toBe(undoStackSize);
+    expect(document.activeElement).toBe(
+      document.querySelector(".excalidraw-container"),
+    );
+
+    await openDialog();
+    const first = queryByTestId(getDialog(), "style-preset-clean")!;
+    first.focus();
+    fireEvent.keyDown(first, { key: "End" });
+    pressEnter(getApplyButton());
+    expect(getDialog()).toBeNull();
+    const muted = STYLE_PRESETS[STYLE_PRESETS.length - 1];
+    expect(getById(box.id).strokeColor).toBe(muted.style.strokeColor);
+    expect(getById(label.id)).toBe(label);
+    expect(h.state.editingTextElement).toBeNull();
+    expect(h.state.selectedElementIds).toEqual(selectedElementIds);
+    expect(API.getUndoStack().length).toBe(undoStackSize + 1);
+    expect(document.activeElement).toBe(
+      document.querySelector(".excalidraw-container"),
+    );
+  });
+
   it("disables apply and explains why when nothing compatible is selected", async () => {
     const arrow = API.createElement({ type: "arrow" });
     API.setElements([arrow]);

@@ -145,6 +145,16 @@ export const StylePresetsDialog = ({ onClose }: { onClose: () => void }) => {
       ?.focus();
   };
 
+  // the editor listens for keys on the document (or its container), so keys
+  // pressed inside the portaled dialog would otherwise reach it too: Enter on
+  // a focused button would start editing the selected shape's label and
+  // cancel the button's own activation. Escape still bubbles to the Modal.
+  const isolateEditorKeys = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== KEYS.ESCAPE) {
+      event.stopPropagation();
+    }
+  };
+
   const closeDialog = () => {
     onClose();
     // return focus to the editor rather than leaving it on the document body
@@ -181,74 +191,76 @@ export const StylePresetsDialog = ({ onClose }: { onClose: () => void }) => {
       title={t("stylePresets.title")}
       className="StylePresetsDialog"
     >
-      <div className="StylePresets__body">
-        <div className="StylePresets__choices">
-          <div
-            role="radiogroup"
-            aria-label={t("stylePresets.choose")}
-            aria-describedby={statusId}
-            className="StylePresets__list"
-            onKeyDown={onPresetKeyDown}
-          >
-            {STYLE_PRESETS.map((item) => {
-              const checked = item.id === preset.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={checked}
-                  tabIndex={checked ? 0 : -1}
-                  className="StylePresets__option"
-                  data-testid={`style-preset-${item.id}`}
-                  disabled={!targetIds.size}
-                  onClick={() => setPreset(item)}
-                >
-                  <span
-                    className="StylePresets__swatch"
-                    aria-hidden="true"
-                    style={{
-                      borderColor: item.style.strokeColor,
-                      borderWidth: item.style.strokeWidth,
-                      borderStyle: item.style.strokeStyle,
-                      background: item.style.backgroundColor,
-                      borderRadius: item.style.rounded ? 6 : 0,
-                    }}
-                  />
-                  {t(`stylePresets.presets.${item.id}`)}
-                </button>
-              );
-            })}
+      <div onKeyDown={isolateEditorKeys}>
+        <div className="StylePresets__body">
+          <div className="StylePresets__choices">
+            <div
+              role="radiogroup"
+              aria-label={t("stylePresets.choose")}
+              aria-describedby={statusId}
+              className="StylePresets__list"
+              onKeyDown={onPresetKeyDown}
+            >
+              {STYLE_PRESETS.map((item) => {
+                const checked = item.id === preset.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={checked}
+                    tabIndex={checked ? 0 : -1}
+                    className="StylePresets__option"
+                    data-testid={`style-preset-${item.id}`}
+                    disabled={!targetIds.size}
+                    onClick={() => setPreset(item)}
+                  >
+                    <span
+                      className="StylePresets__swatch"
+                      aria-hidden="true"
+                      style={{
+                        borderColor: item.style.strokeColor,
+                        borderWidth: item.style.strokeWidth,
+                        borderStyle: item.style.strokeStyle,
+                        background: item.style.backgroundColor,
+                        borderRadius: item.style.rounded ? 6 : 0,
+                      }}
+                    />
+                    {t(`stylePresets.presets.${item.id}`)}
+                  </button>
+                );
+              })}
+            </div>
+            <p
+              id={statusId}
+              className="StylePresets__status"
+              data-testid="style-presets-status"
+              role="status"
+            >
+              {status}
+            </p>
           </div>
-          <p
-            id={statusId}
-            className="StylePresets__status"
-            data-testid="style-presets-status"
-            role="status"
+          <section
+            className="StylePresets__previewPanel"
+            aria-label={t("stylePresets.preview")}
           >
-            {status}
-          </p>
+            <StylePresetPreview elements={previewElements} />
+          </section>
         </div>
-        <section
-          className="StylePresets__previewPanel"
-          aria-label={t("stylePresets.preview")}
-        >
-          <StylePresetPreview elements={previewElements} />
-        </section>
-      </div>
-      <div className="StylePresets__actions">
-        <DialogActionButton
-          label={t("buttons.cancel")}
-          data-testid="style-presets-cancel"
-          onClick={closeDialog}
-        />
-        <DialogActionButton
-          label={t("stylePresets.apply", { count: targetIds.size })}
-          actionType="primary"
-          data-testid="style-presets-apply"
-          disabled={!targetIds.size}
-          onClick={applyPreset}
-        />
+        <div className="StylePresets__actions">
+          <DialogActionButton
+            label={t("buttons.cancel")}
+            data-testid="style-presets-cancel"
+            onClick={closeDialog}
+          />
+          <DialogActionButton
+            label={t("stylePresets.apply", { count: targetIds.size })}
+            actionType="primary"
+            data-testid="style-presets-apply"
+            disabled={!targetIds.size}
+            onClick={applyPreset}
+          />
+        </div>
       </div>
     </Dialog>
   );
