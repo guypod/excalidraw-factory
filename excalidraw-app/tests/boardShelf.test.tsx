@@ -529,6 +529,57 @@ describe("BoardShelfDialog", () => {
     expect(h.elements.map((el) => el.id)).toEqual(["newer"]);
   });
 
+  it("stores the active board together with the scene it belongs to", async () => {
+    setScene([API.createElement({ type: "rectangle", id: "first" })]);
+    await openShelf();
+    await saveAsNew("First");
+    setScene([API.createElement({ type: "ellipse", id: "second" })]);
+    await saveAsNew("Second");
+
+    await clickInItem("First", "board-shelf-open");
+    await waitFor(() =>
+      expect(h.elements.map((el) => el.id)).toEqual(["first"]),
+    );
+    // written right away, not after the debounced scene save
+    expect(
+      JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS)!,
+      ).map((el: { id: string }) => el.id),
+    ).toEqual(["first"]);
+    expect(
+      JSON.parse(localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_ACTIVE_BOARD)!)
+        .name,
+    ).toBe("First");
+  });
+
+  it("does not leave another board stored when the scene write fails", async () => {
+    setScene([API.createElement({ type: "rectangle", id: "first" })]);
+    await openShelf();
+    await saveAsNew("First");
+    expect(
+      localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_ACTIVE_BOARD),
+    ).not.toBeNull();
+
+    const setItem = localStorage.setItem.bind(localStorage);
+    const setItemSpy = vi
+      .spyOn(localStorage, "setItem")
+      .mockImplementation((key, value) => {
+        if (key === STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS) {
+          throw new DOMException("full", "QuotaExceededError");
+        }
+        return setItem(key, value);
+      });
+    try {
+      setScene([API.createElement({ type: "ellipse", id: "second" })]);
+      await saveAsNew("Second");
+    } finally {
+      setItemSpy.mockRestore();
+    }
+    expect(localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_ACTIVE_BOARD)).toBe(
+      null,
+    );
+  });
+
   it("takes the active board from storage when another tab's scene is imported", async () => {
     await openShelf();
     await saveAsNew("Mine");

@@ -330,19 +330,18 @@ export const loadActiveBoard = (): ActiveBoard | null => {
   return null;
 };
 
+/**
+ * Throws on storage errors. Only `LocalData` calls this, together with the
+ * scene write, so the stored board always belongs to the stored scene.
+ */
 export const saveActiveBoard = (activeBoard: ActiveBoard | null) => {
-  try {
-    if (activeBoard) {
-      localStorage.setItem(
-        STORAGE_KEYS.LOCAL_STORAGE_ACTIVE_BOARD,
-        JSON.stringify(activeBoard),
-      );
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.LOCAL_STORAGE_ACTIVE_BOARD);
-    }
-  } catch (error: any) {
-    // the active board is a convenience: losing it only loses dirty tracking
-    console.error(error);
+  if (activeBoard) {
+    localStorage.setItem(
+      STORAGE_KEYS.LOCAL_STORAGE_ACTIVE_BOARD,
+      JSON.stringify(activeBoard),
+    );
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.LOCAL_STORAGE_ACTIVE_BOARD);
   }
 };
 

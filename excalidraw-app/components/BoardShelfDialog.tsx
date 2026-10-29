@@ -15,13 +15,13 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 import { appJotaiStore, atom, useAtom } from "../app-jotai";
 import { isCollaboratingAtom } from "../collab/Collab";
+import { LocalData } from "../data/LocalData";
 import {
   activeBoardAtom,
   BoardShelf,
   getBoardFiles,
   hasUnsavedBoardChanges,
   normalizeBoardName,
-  saveActiveBoard,
 } from "../data/boardShelf";
 
 import "./BoardShelfDialog.scss";
@@ -102,9 +102,12 @@ const BoardShelfDialogInner = ({
   const setActiveBoard = useCallback(
     (board: ActiveBoard | null) => {
       setActiveBoardState(board);
-      saveActiveBoard(board);
+      LocalData.saveActiveBoard(
+        excalidrawAPI.getSceneElementsIncludingDeleted(),
+        excalidrawAPI.getAppState(),
+      );
     },
-    [setActiveBoardState],
+    [excalidrawAPI, setActiveBoardState],
   );
 
   const refresh = useCallback(async () => {

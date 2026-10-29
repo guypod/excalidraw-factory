@@ -88,6 +88,9 @@ const saveDataStateToLocalStorage = (
       _appState.openSidebar = null;
     }
 
+    // removed first, so a failed write below leaves no board rather than one
+    // that doesn't belong to the stored scene
+    saveActiveBoard(null);
     localStorage.setItem(
       STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS,
       JSON.stringify(getNonDeletedElements(elements)),
@@ -96,8 +99,8 @@ const saveDataStateToLocalStorage = (
       STORAGE_KEYS.LOCAL_STORAGE_APP_STATE,
       JSON.stringify(_appState),
     );
-    // stored with the scene, so a tab that imports this scene also gets the
-    // board it belongs to
+    // stored with the scene, and before the version bump, so a tab that
+    // imports this scene also gets the board it belongs to
     saveActiveBoard(appJotaiStore.get(activeBoardAtom));
     updateBrowserStateVersion(STORAGE_KEYS.VERSION_DATA_STATE);
     if (localStorageQuotaExceeded) {
@@ -152,6 +155,23 @@ export class LocalData {
 
   static flushSave = () => {
     this._save.flush();
+  };
+
+  /**
+   * Call after `activeBoardAtom` changes. Writes the scene now, together with
+   * the new active board, so other tabs never import a board identity with a
+   * scene it doesn't belong to. Bails if saving is paused, which leaves the
+   * stored scene and board as they were.
+   */
+  static saveActiveBoard = (
+    elements: readonly ExcalidrawElement[],
+    appState: AppState,
+  ) => {
+    if (!this.isSavePaused()) {
+      // pending files are saved through the regular debounced save
+      this._save.flush();
+      saveDataStateToLocalStorage(elements, appState);
+    }
   };
 
   private static locker = new Locker<SavingLockTypes>();
