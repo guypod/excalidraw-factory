@@ -66,6 +66,7 @@ import { ToolPopover } from "./ToolPopover";
 import { Tooltip } from "./Tooltip";
 import DropdownMenu from "./dropdownMenu/DropdownMenu";
 import { PropertiesPopover } from "./PropertiesPopover";
+import { getStylePresetTargets } from "./StylePresets/stylePresets";
 import {
   EmbedIcon,
   extraToolsIcon,
@@ -73,6 +74,7 @@ import {
   mermaidLogoIcon,
   templateIcon,
   stickyNotesIcon,
+  stylePresetsIcon,
   laserPointerToolIcon,
   MagicIcon,
   LassoIcon,
@@ -133,6 +135,28 @@ export const canChangeBackgroundColor = (
   return (
     hasBackground(appState.activeTool.type) ||
     targetElements.some((element) => hasBackground(element.type))
+  );
+};
+
+const StylePresetsButton = ({
+  targetElements,
+  app,
+}: {
+  targetElements: ExcalidrawElement[];
+  app: AppClassProperties;
+}) => {
+  if (!getStylePresetTargets(targetElements).length) {
+    return null;
+  }
+  return (
+    <ToolButton
+      type="button"
+      icon={stylePresetsIcon}
+      title={t("stylePresets.open")}
+      aria-label={t("stylePresets.open")}
+      data-testid="style-presets-button"
+      onClick={() => app.setOpenDialog({ name: "stylePresets" })}
+    />
   );
 };
 
@@ -310,6 +334,7 @@ export const SelectedShapeActions = ({
             {showLinkIcon && renderAction("hyperlink")}
             {showCropEditorAction && renderAction("cropEditor")}
             {showLineEditorAction && renderAction("toggleLinearEditor")}
+            <StylePresetsButton targetElements={targetElements} app={app} />
           </div>
         </fieldset>
       )}
@@ -750,6 +775,10 @@ const CombinedExtraActions = ({
                   {showCropEditorAction && renderAction("cropEditor")}
                   {showDuplicate && renderAction("duplicateSelection")}
                   {showDelete && renderAction("deleteSelectedElements")}
+                  <StylePresetsButton
+                    targetElements={targetElements}
+                    app={app}
+                  />
                 </div>
               </fieldset>
             </div>

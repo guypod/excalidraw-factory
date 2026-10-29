@@ -1,0 +1,112 @@
+@use "../../css/variables.module" as *;
+
+.excalidraw {
+  .StylePresetsDialog {
+    .StylePresets__body {
+      display: flex;
+      gap: 1rem;
+
+      @include isMobile {
+        flex-direction: column;
+      }
+    }
+
+    .StylePresets__choices {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      flex: 0 0 240px;
+
+      @include isMobile {
+        flex-basis: auto;
+      }
+    }
+
+    .StylePresets__list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .StylePresets__option {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-primary-color);
+      font: inherit;
+      text-align: start;
+      cursor: pointer;
+
+      &:hover:not(:disabled) {
+        background: var(--button-hover-bg);
+      }
+
+      &[aria-checked="true"] {
+        border-color: var(--color-primary);
+        background: var(--color-primary-light);
+      }
+
+      &:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 2px var(--color-primary);
+      }
+
+      &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+
+    .StylePresets__swatch {
+      flex: 0 0 auto;
+      width: 1.75rem;
+      height: 1.25rem;
+      box-sizing: border-box;
+    }
+
+    .StylePresets__status {
+      margin: 0;
+      font-size: 0.875rem;
+      color: var(--text-primary-color);
+    }
+
+    .StylePresets__previewPanel {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      border-radius: 8px;
+      border: 1px solid $color-gray-4;
+      padding: 0.75rem;
+    }
+
+    .StylePresets__preview {
+      flex: 1;
+      min-height: 240px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+
+      svg {
+        max-width: 100%;
+        max-height: 320px;
+      }
+    }
+
+    .StylePresets__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 1rem;
+
+      .Dialog__action-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+  }
+}
