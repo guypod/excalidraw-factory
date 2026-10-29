@@ -39,6 +39,7 @@ import { PasteChartDialog } from "./PasteChartDialog";
 import { StickyBurstDialog } from "./StickyBurst/StickyBurstDialog";
 import { StylePresetsDialog } from "./StylePresets/StylePresetsDialog";
 import { ReadabilityReportDialog } from "./ReadabilityReport/ReadabilityReportDialog";
+import { TidyGridDialog } from "./TidyGrid/TidyGridDialog";
 import { TemplateGalleryDialog } from "./TemplateGallery/TemplateGalleryDialog";
 import { Section } from "./Section";
 import Stack from "./Stack";
@@ -607,6 +608,15 @@ const LayerUI = ({
       )}
       {appState.openDialog?.name === "readabilityReport" && (
         <ReadabilityReportDialog
+          onClose={() =>
+            setAppState({
+              openDialog: null,
+            })
+          }
+        />
+      )}
+      {appState.openDialog?.name === "tidyGrid" && (
+        <TidyGridDialog
           onClose={() =>
             setAppState({
               openDialog: null,

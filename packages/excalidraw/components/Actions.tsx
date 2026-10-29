@@ -68,6 +68,7 @@ import DropdownMenu from "./dropdownMenu/DropdownMenu";
 import { PropertiesPopover } from "./PropertiesPopover";
 import { getStylePresetTargets } from "./StylePresets/stylePresets";
 import { hasReadabilityTargets } from "./ReadabilityReport/readability";
+import { hasTidyTargets } from "./TidyGrid/tidyGrid";
 import {
   EmbedIcon,
   extraToolsIcon,
@@ -77,6 +78,7 @@ import {
   stickyNotesIcon,
   stylePresetsIcon,
   readabilityReportIcon,
+  tidyGridIcon,
   laserPointerToolIcon,
   MagicIcon,
   LassoIcon,
@@ -180,6 +182,28 @@ const ReadabilityReportButton = ({
       aria-label={t("readabilityReport.open")}
       data-testid="readability-report-button"
       onClick={() => app.setOpenDialog({ name: "readabilityReport" })}
+    />
+  );
+};
+
+const TidyGridButton = ({
+  targetElements,
+  app,
+}: {
+  targetElements: ExcalidrawElement[];
+  app: AppClassProperties;
+}) => {
+  if (!hasTidyTargets(targetElements)) {
+    return null;
+  }
+  return (
+    <ToolButton
+      type="button"
+      icon={tidyGridIcon}
+      title={t("tidyGrid.open")}
+      aria-label={t("tidyGrid.open")}
+      data-testid="tidy-grid-button"
+      onClick={() => app.setOpenDialog({ name: "tidyGrid" })}
     />
   );
 };
@@ -363,6 +387,7 @@ export const SelectedShapeActions = ({
               targetElements={targetElements}
               app={app}
             />
+            <TidyGridButton targetElements={targetElements} app={app} />
           </div>
         </fieldset>
       )}
@@ -811,6 +836,7 @@ const CombinedExtraActions = ({
                     targetElements={targetElements}
                     app={app}
                   />
+                  <TidyGridButton targetElements={targetElements} app={app} />
                 </div>
               </fieldset>
             </div>

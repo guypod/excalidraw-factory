@@ -404,6 +404,7 @@ export interface AppState {
     | { name: "stickyBurst" }
     | { name: "stylePresets" }
     | { name: "readabilityReport" }
+    | { name: "tidyGrid" }
     | { name: "settings" }
     | { name: "elementLinkSelector"; sourceElementId: ExcalidrawElement["id"] }
     | { name: "charts"; data: Spreadsheet; rawText: string };
