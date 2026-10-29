@@ -42,6 +42,7 @@ import { Dialog } from "../Dialog";
 import { InlineIcon } from "../InlineIcon";
 import { TextField } from "../TextField";
 import { getSelectedElements } from "../../scene";
+import { getStylePresetTargets } from "../StylePresets/stylePresets";
 import {
   LockedIcon,
   UnlockedIcon,
@@ -54,6 +55,7 @@ import {
   mermaidLogoIcon,
   templateIcon,
   stickyNotesIcon,
+  stylePresetsIcon,
   brainIconThin,
   LibraryIcon,
   historyCommandIcon,
@@ -536,6 +538,23 @@ function CommandPaletteInner({
             setAppState((prevState) => ({
               openPopup: "elementBackground",
             }));
+          },
+        },
+        {
+          label: `${t("stylePresets.open")}...`,
+          keywords: ["style", "theme", "look"],
+          icon: stylePresetsIcon,
+          category: DEFAULT_CATEGORIES.elements,
+          viewMode: false,
+          predicate: (elements, appState) =>
+            getStylePresetTargets(getSelectedElements(elements, appState))
+              .length > 0,
+          perform: () => {
+            setAppState({
+              openDialog: {
+                name: "stylePresets",
+              },
+            });
           },
         },
         {

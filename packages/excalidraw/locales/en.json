@@ -836,5 +836,22 @@
     "dropped": "{{count}} extra line(s) were left out: up to {{max}} notes at a time.",
     "shortened": "{{count}} line(s) were shortened to {{max}} characters.",
     "insert": "Add {{count}} note(s)"
+  },
+  "stylePresets": {
+    "title": "Style presets",
+    "open": "Style presets",
+    "choose": "Choose a style preset",
+    "preview": "Preview",
+    "count": "{{count}} shape(s) will be restyled. Text, connections and position stay the same.",
+    "empty": "Select a rectangle, diamond or ellipse to use a style preset.",
+    "skipped": "{{count}} other selected element(s) will not change.",
+    "apply": "Apply to {{count}} shape(s)",
+    "presets": {
+      "clean": "Clean",
+      "sketch": "Sketch",
+      "highlight": "Highlight",
+      "bold": "Bold",
+      "muted": "Muted"
+    }
   }
 }

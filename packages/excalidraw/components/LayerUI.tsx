@@ -37,6 +37,7 @@ import { LockButton } from "./LockButton";
 import { MobileMenu } from "./MobileMenu";
 import { PasteChartDialog } from "./PasteChartDialog";
 import { StickyBurstDialog } from "./StickyBurst/StickyBurstDialog";
+import { StylePresetsDialog } from "./StylePresets/StylePresetsDialog";
 import { TemplateGalleryDialog } from "./TemplateGallery/TemplateGalleryDialog";
 import { Section } from "./Section";
 import Stack from "./Stack";
@@ -583,6 +584,15 @@ const LayerUI = ({
       )}
       {appState.openDialog?.name === "stickyBurst" && (
         <StickyBurstDialog
+          onClose={() =>
+            setAppState({
+              openDialog: null,
+            })
+          }
+        />
+      )}
+      {appState.openDialog?.name === "stylePresets" && (
+        <StylePresetsDialog
           onClose={() =>
             setAppState({
               openDialog: null,

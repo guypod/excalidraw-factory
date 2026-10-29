@@ -402,6 +402,7 @@ export interface AppState {
     | { name: "commandPalette" }
     | { name: "templateGallery" }
     | { name: "stickyBurst" }
+    | { name: "stylePresets" }
     | { name: "settings" }
     | { name: "elementLinkSelector"; sourceElementId: ExcalidrawElement["id"] }
     | { name: "charts"; data: Spreadsheet; rawText: string };
