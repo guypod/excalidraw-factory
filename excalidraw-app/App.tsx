@@ -115,6 +115,7 @@ import {
   isCollaborationLink,
 } from "./data";
 
+import { syncActiveBoardFromStorage } from "./data/boardShelf";
 import { updateStaleImageStatuses } from "./data/FileManager";
 import { FileStatusStore } from "./data/fileStatusStore";
 import {
@@ -574,6 +575,7 @@ const ExcalidrawWrapper = () => {
             ...localDataState,
             captureUpdate: CaptureUpdateAction.NEVER,
           });
+          syncActiveBoardFromStorage();
           LibraryIndexedDBAdapter.load().then((data) => {
             if (data) {
               excalidrawAPI.updateLibrary({

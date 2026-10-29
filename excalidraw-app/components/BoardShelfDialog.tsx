@@ -3,6 +3,7 @@ import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import DialogActionButton from "@excalidraw/excalidraw/components/DialogActionButton";
 import { TextField } from "@excalidraw/excalidraw/components/TextField";
 import {
+  bumpElementVersions,
   restoreAppState,
   restoreElements,
 } from "@excalidraw/excalidraw/data/restore";
@@ -12,12 +13,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
-import { atom, useAtom } from "../app-jotai";
+import { appJotaiStore, atom, useAtom } from "../app-jotai";
+import { isCollaboratingAtom } from "../collab/Collab";
 import {
+  activeBoardAtom,
   BoardShelf,
   getBoardFiles,
   hasUnsavedBoardChanges,
-  loadActiveBoard,
   normalizeBoardName,
   saveActiveBoard,
 } from "../data/boardShelf";
@@ -32,7 +34,7 @@ import type {
 
 export const boardShelfDialogOpenAtom = atom(false);
 
-export const activeBoardAtom = atom<ActiveBoard | null>(loadActiveBoard());
+export { activeBoardAtom };
 
 type Status = { type: "info" | "error"; message: string } | null;
 
@@ -131,6 +133,16 @@ const BoardShelfDialogInner = ({
     }
   }, [pendingConfirm, renaming, boards]);
 
+  // async work started by this dialog must not touch the scene once the
+  // dialog has closed (a reopened dialog is a new instance)
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // guards async work so the dialog never runs two storage writes at once
   const busyRef = useRef(false);
   const run = async (task: () => Promise<void>) => {
@@ -173,13 +185,29 @@ const BoardShelfDialogInner = ({
 
   const doOpen = async (board: BoardSummary) => {
     const record = await BoardShelf.load(board.id);
+    if (!isMountedRef.current) {
+      return;
+    }
+    // checked when the scene is applied, because a session can start while a
+    // confirmation or read is pending, and the scene would then be synced
+    if (appJotaiStore.get(isCollaboratingAtom)) {
+      setPendingConfirm(null);
+      throw new Error(t("boardShelf.openDisabledWhileCollaborating"));
+    }
     excalidrawAPI.addFiles(getBoardFiles(record));
     excalidrawAPI.updateScene({
-      elements: restoreElements(record.elements, null, {
-        repairBindings: true,
-      }),
+      // versions must be above the current scene's, or history won't record
+      // elements that go back to an older saved state
+      elements: bumpElementVersions(
+        restoreElements(record.elements, null, {
+          repairBindings: true,
+        }),
+        excalidrawAPI.getSceneElementsIncludingDeleted(),
+      ),
       appState: {
         ...restoreAppState(record.appState, excalidrawAPI.getAppState()),
+        // the board is not the local file the canvas may have come from
+        fileHandle: null,
         name: record.name,
         selectedElementIds: {},
         selectedGroupIds: {},
@@ -203,8 +231,12 @@ const BoardShelfDialogInner = ({
     run(async () => {
       const isDirty = await hasUnsavedBoardChanges(
         excalidrawAPI.getSceneElements(),
+        excalidrawAPI.getAppState(),
         activeBoard,
       );
+      if (!isMountedRef.current) {
+        return;
+      }
       if (isDirty) {
         setPendingConfirm({ type: "open", board });
       } else {

@@ -41,6 +41,7 @@ import type { MaybePromise } from "@excalidraw/common/utility-types";
 import { appJotaiStore, atom } from "../app-jotai";
 import { SAVE_TO_LOCAL_STORAGE_TIMEOUT, STORAGE_KEYS } from "../app_constants";
 
+import { activeBoardAtom, saveActiveBoard } from "./boardShelf";
 import { FileManager } from "./FileManager";
 import { FileStatusStore } from "./fileStatusStore";
 import { Locker } from "./Locker";
@@ -95,6 +96,9 @@ const saveDataStateToLocalStorage = (
       STORAGE_KEYS.LOCAL_STORAGE_APP_STATE,
       JSON.stringify(_appState),
     );
+    // stored with the scene, so a tab that imports this scene also gets the
+    // board it belongs to
+    saveActiveBoard(appJotaiStore.get(activeBoardAtom));
     updateBrowserStateVersion(STORAGE_KEYS.VERSION_DATA_STATE);
     if (localStorageQuotaExceeded) {
       appJotaiStore.set(localStorageQuotaExceededAtom, false);

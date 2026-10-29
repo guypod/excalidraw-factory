@@ -1,5 +1,7 @@
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
+import { getDefaultAppState } from "@excalidraw/excalidraw/appState";
 import { API } from "@excalidraw/excalidraw/tests/helpers/api";
+import { Keyboard } from "@excalidraw/excalidraw/tests/helpers/ui";
 import {
   act,
   fireEvent,
@@ -19,7 +21,13 @@ import {
   activeBoardAtom,
   boardShelfDialogOpenAtom,
 } from "../components/BoardShelfDialog";
-import { BoardShelf, BoardShelfError } from "../data/boardShelf";
+import { isCollaboratingAtom } from "../collab/Collab";
+import {
+  BoardShelf,
+  BoardShelfError,
+  hasUnsavedBoardChanges,
+  syncActiveBoardFromStorage,
+} from "../data/boardShelf";
 
 const { h } = window;
 
@@ -195,6 +203,99 @@ describe("BoardShelf storage", () => {
     await BoardShelf.delete(record.id);
     expect((await BoardShelf.list()).boards).toEqual([]);
   });
+
+  it("keeps stored image data when overwriting without the image loaded", async () => {
+    const image = API.createElement({
+      type: "image",
+      id: "img",
+      fileId: imageFile.id,
+    });
+    const { record } = await BoardShelf.save({
+      name: "Board",
+      elements: [image],
+      appState: {},
+      files: { [imageFile.id]: imageFile },
+    });
+
+    const { missingFileIds } = await BoardShelf.save({
+      id: record.id,
+      name: "Board",
+      elements: [image],
+      appState: {},
+      files: {},
+    });
+
+    expect(missingFileIds).toEqual([]);
+    const loaded = await BoardShelf.load(record.id);
+    expect(loaded.files[imageFile.id]?.dataURL).toBe(imageFile.dataURL);
+  });
+
+  it("lists records with malformed elements as unreadable", async () => {
+    await set(
+      "bad-elements",
+      {
+        version: 1,
+        id: "bad-elements",
+        name: "Bad",
+        createdAt: 1,
+        updatedAt: 1,
+        elements: [null],
+        appState: {},
+        files: {},
+      },
+      boardsStore,
+    );
+    expect((await BoardShelf.list()).unreadable).toEqual([
+      { id: "bad-elements" },
+    ]);
+  });
+
+  it("renames without replacing content saved after the board was read", async () => {
+    const { record } = await BoardShelf.save({
+      name: "Old",
+      elements: [API.createElement({ type: "rectangle", id: "first" })],
+      appState: {},
+      files: {},
+    });
+    const saving = BoardShelf.save({
+      id: record.id,
+      name: "Old",
+      elements: [API.createElement({ type: "ellipse", id: "second" })],
+      appState: {},
+      files: {},
+    });
+    const renaming = BoardShelf.rename(record.id, "New");
+    await Promise.all([saving, renaming]);
+
+    const loaded = await BoardShelf.load(record.id);
+    expect(loaded.name).toBe("New");
+    expect(loaded.elements.map((el) => el.id)).toEqual(["second"]);
+  });
+
+  it("counts a changed background as unsaved", async () => {
+    const elements = [API.createElement({ type: "rectangle", id: "rect" })];
+    const { record } = await BoardShelf.save({
+      name: "Board",
+      elements,
+      appState: { viewBackgroundColor: "#ffffff" },
+      files: {},
+    });
+    const active = { id: record.id, name: record.name };
+    expect(
+      await hasUnsavedBoardChanges(
+        elements,
+        { ...getDefaultAppState(), viewBackgroundColor: "#ffffff" },
+        active,
+      ),
+    ).toBe(false);
+    expect(
+      await hasUnsavedBoardChanges(
+        elements,
+        { ...getDefaultAppState(), viewBackgroundColor: "#ffc9c9" },
+        active,
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("BoardShelfDialog", () => {
@@ -202,6 +303,7 @@ describe("BoardShelfDialog", () => {
     await clearBoards();
     localStorage.clear();
     appJotaiStore.set(activeBoardAtom, null);
+    appJotaiStore.set(isCollaboratingAtom, false);
     await render(<ExcalidrawApp />);
   });
 
@@ -341,5 +443,106 @@ describe("BoardShelfDialog", () => {
     }
     expect(h.elements.map((el) => el.id)).toEqual(["keep"]);
     expect((await BoardShelf.list()).boards).toHaveLength(0);
+  });
+
+  it("makes reopening an older snapshot one undoable step", async () => {
+    const rect = API.createElement({ type: "rectangle", id: "rect", x: 0 });
+    setScene([rect]);
+    await openShelf();
+    await saveAsNew("Board");
+
+    setScene([
+      { ...h.elements[0], x: 100, version: h.elements[0].version + 1 },
+    ]);
+    await clickInItem("Board", "board-shelf-open");
+    await waitFor(() => expect(byTestId("board-shelf-confirm")).not.toBeNull());
+    fireEvent.click(byTestId("board-shelf-confirm-action")!);
+    await waitFor(() => expect(h.elements[0].x).toBe(0));
+
+    act(() => {
+      Keyboard.undo();
+    });
+    expect(h.elements[0].x).toBe(100);
+  });
+
+  it("does not keep the previous local file handle", async () => {
+    await openShelf();
+    await saveAsNew("Board");
+    const fileHandle = { name: "other.excalidraw" } as any;
+    act(() => {
+      API.setAppState({ fileHandle });
+    });
+    await clickInItem("Board", "board-shelf-open");
+    await waitFor(() => expect(h.state.name).toBe("Board"));
+    expect(h.state.fileHandle).toBeNull();
+  });
+
+  it("does not open a board if collaboration started during the confirm", async () => {
+    setScene([API.createElement({ type: "rectangle", id: "saved" })]);
+    await openShelf();
+    await saveAsNew("Board A");
+    setScene([API.createElement({ type: "ellipse", id: "unsaved" })]);
+    await clickInItem("Board A", "board-shelf-open");
+    await waitFor(() => expect(byTestId("board-shelf-confirm")).not.toBeNull());
+
+    act(() => {
+      appJotaiStore.set(isCollaboratingAtom, true);
+    });
+    fireEvent.click(byTestId("board-shelf-confirm-action")!);
+    await waitFor(() =>
+      expect(byTestId("board-shelf-status")?.textContent).toMatch(
+        /collaboration/,
+      ),
+    );
+    expect(h.elements.map((el) => el.id)).toEqual(["unsaved"]);
+  });
+
+  it("does not change the scene if the dialog closes while a board loads", async () => {
+    setScene([API.createElement({ type: "rectangle", id: "saved" })]);
+    await openShelf();
+    await saveAsNew("Board A");
+    setScene([]);
+
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const load = BoardShelf.load;
+    const loadSpy = vi
+      .spyOn(BoardShelf, "load")
+      .mockImplementation(async (id) => {
+        await gate;
+        return load(id);
+      });
+    try {
+      await clickInItem("Board A", "board-shelf-open");
+      act(() => {
+        appJotaiStore.set(boardShelfDialogOpenAtom, false);
+      });
+      setScene([API.createElement({ type: "ellipse", id: "newer" })]);
+      release();
+      await act(() => gate);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    } finally {
+      loadSpy.mockRestore();
+    }
+    expect(h.elements.map((el) => el.id)).toEqual(["newer"]);
+  });
+
+  it("takes the active board from storage when another tab's scene is imported", async () => {
+    await openShelf();
+    await saveAsNew("Mine");
+    localStorage.setItem(
+      STORAGE_KEYS.LOCAL_STORAGE_ACTIVE_BOARD,
+      JSON.stringify({ id: "other", name: "Other tab" }),
+    );
+    act(() => {
+      syncActiveBoardFromStorage();
+    });
+    await waitFor(() =>
+      expect(byTestId("board-shelf-current")?.textContent).toContain(
+        "Other tab",
+      ),
+    );
   });
 });

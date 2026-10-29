@@ -8,13 +8,16 @@
  */
 
 import { cleanAppStateForExport } from "@excalidraw/excalidraw/appState";
-import { restoreElements } from "@excalidraw/excalidraw/data/restore";
+import {
+  restoreAppState,
+  restoreElements,
+} from "@excalidraw/excalidraw/data/restore";
 import { randomId } from "@excalidraw/common";
 import {
   getNonDeletedElements,
   isInitializedImageElement,
 } from "@excalidraw/element";
-import { createStore, del, entries, get, set } from "idb-keyval";
+import { createStore, del, entries, get, update } from "idb-keyval";
 
 import type { ExcalidrawElement, FileId } from "@excalidraw/element/types";
 import type {
@@ -23,6 +26,7 @@ import type {
   BinaryFiles,
 } from "@excalidraw/excalidraw/types";
 
+import { appJotaiStore, atom } from "../app-jotai";
 import { STORAGE_KEYS } from "../app_constants";
 
 const BOARD_RECORD_VERSION = 1;
@@ -94,18 +98,26 @@ const toShelfError = (error: unknown): BoardShelfError => {
 export const normalizeBoardName = (name: string) =>
   name.replace(/\s+/g, " ").trim().slice(0, 100);
 
+const isObject = (value: any) => !!value && typeof value === "object";
+
 export const isBoardRecord = (value: any): value is BoardRecord =>
-  !!value &&
-  typeof value === "object" &&
+  isObject(value) &&
   value.version === BOARD_RECORD_VERSION &&
   typeof value.id === "string" &&
   typeof value.name === "string" &&
   typeof value.updatedAt === "number" &&
   Array.isArray(value.elements) &&
+  value.elements.every(
+    (element: any) =>
+      isObject(element) &&
+      typeof element.id === "string" &&
+      typeof element.type === "string",
+  ) &&
   !!value.appState &&
   typeof value.appState === "object" &&
   !!value.files &&
-  typeof value.files === "object";
+  typeof value.files === "object" &&
+  Object.values(value.files).every(isObject);
 
 /**
  * Returns the files referenced by image elements, and the file ids that are
@@ -190,6 +202,10 @@ export const BoardShelf = {
    * Saves the scene. With `id`, overwrites that board (keeping its name and
    * createdAt); otherwise creates a new one. A failed write leaves any
    * previously stored version of the board intact.
+   *
+   * When overwriting, images whose data isn't loaded on the canvas keep the
+   * copy already stored with the board, so a save never drops image data the
+   * board had. The read and write happen in one transaction.
    */
   save: async ({
     id,
@@ -205,48 +221,79 @@ export const BoardShelf = {
     files: BinaryFiles;
   }): Promise<{ record: BoardRecord; missingFileIds: FileId[] }> => {
     const nonDeletedElements = getNonDeletedElements(elements);
-    const { referencedFiles, missingFileIds } = getReferencedFiles(
-      nonDeletedElements,
-      files,
-    );
+    const { referencedFiles, missingFileIds: missingOnCanvas } =
+      getReferencedFiles(nonDeletedElements, files);
 
     const now = Date.now();
-    let createdAt = now;
-    if (id) {
-      const existing = await get(id, boardsStore).catch(() => undefined);
-      if (isBoardRecord(existing)) {
-        createdAt = existing.createdAt;
-      }
-    }
-
-    const record: BoardRecord = {
-      version: BOARD_RECORD_VERSION,
-      id: id ?? randomId(),
-      name: normalizeBoardName(name),
-      createdAt,
-      updatedAt: now,
-      elements: nonDeletedElements,
-      appState: cleanAppStateForExport(appState),
-      files: referencedFiles,
-    };
+    let record: BoardRecord | null = null;
+    let missingFileIds = missingOnCanvas;
+    const boardId = id ?? randomId();
 
     try {
-      await set(record.id, record, boardsStore);
+      await update(
+        boardId,
+        (existing) => {
+          const previous = id && isBoardRecord(existing) ? existing : null;
+          const boardFiles = { ...referencedFiles };
+          missingFileIds = missingOnCanvas.filter((fileId) => {
+            const storedFile = previous?.files[fileId];
+            if (storedFile) {
+              boardFiles[fileId] = storedFile;
+              return false;
+            }
+            return true;
+          });
+          record = {
+            version: BOARD_RECORD_VERSION,
+            id: boardId,
+            name: normalizeBoardName(name),
+            createdAt: previous?.createdAt ?? now,
+            updatedAt: now,
+            elements: nonDeletedElements,
+            appState: cleanAppStateForExport(appState),
+            files: boardFiles,
+          };
+          return record;
+        },
+        boardsStore,
+      );
     } catch (error) {
       throw toShelfError(error);
     }
-    return { record, missingFileIds };
+    return { record: record!, missingFileIds };
   },
 
+  /**
+   * Changes only the name, reading and writing in one transaction so a save
+   * committed from another tab is never replaced by an older snapshot.
+   */
   rename: async (id: string, name: string): Promise<BoardRecord> => {
-    const record = await BoardShelf.load(id);
-    const renamed: BoardRecord = { ...record, name: normalizeBoardName(name) };
+    let renamed: BoardRecord | null = null;
     try {
-      await set(id, renamed, boardsStore);
+      await update(
+        id,
+        (existing) => {
+          if (existing === undefined) {
+            throw new BoardShelfError(
+              "notFound",
+              "This board no longer exists.",
+            );
+          }
+          if (!isBoardRecord(existing)) {
+            throw new BoardShelfError(
+              "corrupt",
+              "This board's stored data is unreadable, so it was not renamed.",
+            );
+          }
+          renamed = { ...existing, name: normalizeBoardName(name) };
+          return renamed;
+        },
+        boardsStore,
+      );
     } catch (error) {
       throw toShelfError(error);
     }
-    return renamed;
+    return renamed!;
   },
 
   delete: async (id: string) => {
@@ -299,6 +346,17 @@ export const saveActiveBoard = (activeBoard: ActiveBoard | null) => {
   }
 };
 
+export const activeBoardAtom = atom<ActiveBoard | null>(loadActiveBoard());
+
+/**
+ * Call when the canvas is replaced with the scene another tab saved. The
+ * active board is stored together with that scene (see `LocalData`), so this
+ * keeps the board identity matching the canvas it now shows.
+ */
+export const syncActiveBoardFromStorage = () => {
+  appJotaiStore.set(activeBoardAtom, loadActiveBoard());
+};
+
 // fields that change without the user editing (image upload status, version
 // bookkeeping), so they don't count as unsaved changes
 const comparableElements = (elements: readonly ExcalidrawElement[]) =>
@@ -314,14 +372,25 @@ const comparableElements = (elements: readonly ExcalidrawElement[]) =>
     ),
   );
 
+// persisted scene settings that opening a board replaces (background, grid)
+const comparableAppState = (appState: Partial<AppState>) => {
+  const exported = cleanAppStateForExport(appState) as Record<string, unknown>;
+  return JSON.stringify(
+    Object.keys(exported)
+      .sort()
+      .map((key) => [key, exported[key]]),
+  );
+};
+
 /**
  * Whether the canvas has work that is not saved to a board: anything that
- * differs from the active board's stored elements, or any content when there
- * is no active board. If the active board can't be read, the canvas counts
- * as unsaved so callers ask before replacing it.
+ * differs from the active board's stored elements or scene settings, or any
+ * content when there is no active board. If the active board can't be read,
+ * the canvas counts as unsaved so callers ask before replacing it.
  */
 export const hasUnsavedBoardChanges = async (
   elements: readonly ExcalidrawElement[],
+  appState: Partial<AppState>,
   activeBoard: ActiveBoard | null,
 ) => {
   if (!getNonDeletedElements(elements).length && !activeBoard) {
@@ -337,7 +406,9 @@ export const hasUnsavedBoardChanges = async (
       restoreElements(els, null, { repairBindings: true });
     return (
       comparableElements(restore(record.elements)) !==
-      comparableElements(restore(elements))
+        comparableElements(restore(elements)) ||
+      comparableAppState(restoreAppState(record.appState, null)) !==
+        comparableAppState(restoreAppState(appState, null))
     );
   } catch {
     return true;
