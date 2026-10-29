@@ -1,0 +1,87 @@
+@use "../../css/variables.module" as *;
+
+.excalidraw {
+  .StickyBurstDialog {
+    .StickyBurst__body {
+      display: flex;
+      gap: 1rem;
+
+      @include isMobile {
+        flex-direction: column;
+      }
+    }
+
+    .StickyBurst__inputPanel {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      flex: 0 0 300px;
+
+      @include isMobile {
+        flex-basis: auto;
+      }
+    }
+
+    .StickyBurst__label {
+      font-weight: 600;
+      color: var(--text-primary-color);
+    }
+
+    .StickyBurst__input {
+      min-height: 260px;
+      resize: vertical;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid $color-gray-4;
+      background: transparent;
+      color: var(--text-primary-color);
+      font: inherit;
+
+      &:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 2px var(--color-primary);
+      }
+    }
+
+    .StickyBurst__status {
+      margin: 0;
+      font-size: 0.875rem;
+      color: var(--text-primary-color);
+    }
+
+    .StickyBurst__previewPanel {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      border-radius: 8px;
+      border: 1px solid $color-gray-4;
+      padding: 0.75rem;
+    }
+
+    .StickyBurst__preview {
+      flex: 1;
+      min-height: 260px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+
+      svg {
+        max-width: 100%;
+        max-height: 320px;
+      }
+    }
+
+    .StickyBurst__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 1rem;
+
+      .Dialog__action-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+    }
+  }
+}

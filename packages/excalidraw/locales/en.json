@@ -352,7 +352,8 @@
     "extraTools": "More tools",
     "mermaidToExcalidraw": "Mermaid to Excalidraw",
     "convertElementType": "Toggle shape type",
-    "templateGallery": "Workshop templates"
+    "templateGallery": "Workshop templates",
+    "stickyBurst": "Sticky notes from lines"
   },
   "element": {
     "rectangle": "Rectangle",
@@ -824,5 +825,16 @@
       "opened": "Opened \"{{name}}\".",
       "missingImages": "{{count}} image(s) were not loaded on the canvas and were not saved with the board."
     }
+  },
+  "stickyBurst": {
+    "title": "Sticky notes from lines",
+    "inputLabel": "Paste or type one note per line",
+    "placeholder": "First idea\nSecond idea\nThird idea",
+    "preview": "Preview",
+    "empty": "Add at least one line to create notes. Empty lines are skipped.",
+    "count": "{{count}} note(s) will be added near the center of your view.",
+    "dropped": "{{count}} extra line(s) were left out: up to {{max}} notes at a time.",
+    "shortened": "{{count}} line(s) were shortened to {{max}} characters.",
+    "insert": "Add {{count}} note(s)"
   }
 }

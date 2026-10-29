@@ -72,6 +72,7 @@ import {
   frameToolIcon,
   mermaidLogoIcon,
   templateIcon,
+  stickyNotesIcon,
   laserPointerToolIcon,
   MagicIcon,
   LassoIcon,
@@ -1269,6 +1270,13 @@ export const ShapesSwitcher = ({
             data-testid="toolbar-template-gallery"
           >
             {t("toolBar.templateGallery")}
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            onSelect={() => app.setOpenDialog({ name: "stickyBurst" })}
+            icon={stickyNotesIcon}
+            data-testid="toolbar-sticky-burst"
+          >
+            {t("toolBar.stickyBurst")}
           </DropdownMenu.Item>
           {app.props.aiEnabled !== false && app.plugins.diagramToCode && (
             <DropdownMenu.Item
