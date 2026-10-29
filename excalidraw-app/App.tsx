@@ -115,7 +115,7 @@ import {
   isCollaborationLink,
 } from "./data";
 
-import { syncActiveBoardFromStorage } from "./data/boardShelf";
+import { activeBoardAtom, syncActiveBoardFromStorage } from "./data/boardShelf";
 import { updateStaleImageStatuses } from "./data/FileManager";
 import { FileStatusStore } from "./data/fileStatusStore";
 import {
@@ -411,6 +411,7 @@ const ExcalidrawWrapper = () => {
     return isCollaborationLink(window.location.href);
   });
   const collabError = useAtomValue(collabErrorIndicatorAtom);
+  const activeBoard = useAtomValue(activeBoardAtom);
 
   useHandleLibrary({
     excalidrawAPI,
@@ -915,6 +916,7 @@ const ExcalidrawWrapper = () => {
         onExport={onExport}
         initialData={initialStatePromiseRef.current.promise}
         isCollaborating={isCollaborating}
+        boardId={activeBoard?.id}
         onPointerUpdate={collabAPI?.onPointerUpdate}
         UIOptions={{
           canvasActions: {

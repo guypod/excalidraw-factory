@@ -444,6 +444,7 @@ import {
   subscribeToFramePresentation,
 } from "./FramePresentation";
 import { closeWorkshopTimerForEditor } from "./WorkshopTimer/WorkshopTimer";
+import { closeViewportBookmarksForEditor } from "./ViewportBookmarks/ViewportBookmarks";
 
 import { activeConfirmDialogAtom } from "./ActiveConfirmDialog";
 import BraveMeasureTextError from "./BraveMeasureTextError";
@@ -3215,6 +3216,7 @@ class App extends React.Component<AppProps, AppState> {
     this.editorLifecycleEvents.emit("editor:unmount");
     endFramePresentationForEditor(this.id);
     closeWorkshopTimerForEditor(this.id);
+    closeViewportBookmarksForEditor(this.id);
     this.props.onUnmount?.();
     this.props.onExcalidrawAPI?.(null);
 

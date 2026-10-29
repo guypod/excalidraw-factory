@@ -49,6 +49,7 @@ import MainMenu from "./main-menu/MainMenu";
 import { ActiveConfirmDialog } from "./ActiveConfirmDialog";
 import { FramePresentation } from "./FramePresentation";
 import { WorkshopTimer } from "./WorkshopTimer/WorkshopTimer";
+import { ViewportBookmarks } from "./ViewportBookmarks/ViewportBookmarks";
 import { useEditorInterface, useStylesPanelMode } from "./App";
 import { OverwriteConfirmDialog } from "./OverwriteConfirm/OverwriteConfirm";
 import { sidebarRightIcon } from "./icons";
@@ -548,6 +549,7 @@ const LayerUI = ({
       <ActiveConfirmDialog />
       <FramePresentation />
       <WorkshopTimer />
+      <ViewportBookmarks />
       {appState.openDialog?.name === "elementLinkSelector" && (
         <ElementLinkDialog
           sourceElementId={appState.openDialog.sourceElementId}

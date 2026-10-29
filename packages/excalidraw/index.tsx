@@ -75,6 +75,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
     onUnmount,
     onInitialize,
     isCollaborating = false,
+    boardId,
     onPointerUpdate,
     renderTopLeftUI,
     renderTopRightUI,
@@ -194,6 +195,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
           onUnmount={onUnmount}
           onInitialize={onInitialize}
           isCollaborating={isCollaborating}
+          boardId={boardId}
           onPointerUpdate={onPointerUpdate}
           renderTopLeftUI={renderTopLeftUI}
           renderTopRightUI={renderTopRightUI}
