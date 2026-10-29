@@ -5,12 +5,13 @@ import { KEYS, MAX_ZOOM, reseed } from "@excalidraw/common";
 import { Excalidraw } from "../index";
 import {
   VIEWPORT_BOOKMARKS_STORAGE_KEY,
+  clearUnsavedViewportBookmarks,
   createViewportBookmark,
   getBoardKey,
   getBookmarkViewport,
   getDefaultBookmarkName,
   loadViewportBookmarks,
-  saveViewportBookmarks,
+  updateViewportBookmarks,
 } from "../components/ViewportBookmarks/viewportBookmarkStore";
 import { openViewportBookmarks } from "../components/ViewportBookmarks/ViewportBookmarks";
 
@@ -63,7 +64,10 @@ const storedFor = (boardKey = getBoardKey()) =>
   ];
 
 describe("viewport bookmark helpers", () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    clearUnsavedViewportBookmarks();
+  });
 
   it("keys boards by path and hash id, never the room key", () => {
     expect(getBoardKey({ pathname: "/", hash: "" })).toBe("/");
@@ -72,6 +76,17 @@ describe("viewport bookmark helpers", () => {
     );
     expect(getBoardKey({ pathname: "/", hash: "#json=x,key" })).toBe(
       "/#json=x",
+    );
+  });
+
+  it("keys boards that share a URL by the host's board id", () => {
+    const location = { pathname: "/", hash: "" };
+    expect(getBoardKey(location, "a")).toBe("/#board=a");
+    expect(getBoardKey(location, "b")).toBe("/#board=b");
+    expect(getBoardKey(location, null)).toBe("/");
+    // a room is its own board, whatever local board was open before
+    expect(getBoardKey({ pathname: "/", hash: "#room=r,key" }, "a")).toBe(
+      "/#room=r",
     );
   });
 
@@ -102,8 +117,8 @@ describe("viewport bookmark helpers", () => {
 
   it("keeps each board's bookmarks separate", () => {
     const bookmark = { id: "a", name: "A", centerX: 1, centerY: 2, zoom: 1 };
-    saveViewportBookmarks("/#room=one", [bookmark]);
-    saveViewportBookmarks("/#room=two", []);
+    updateViewportBookmarks("/#room=one", () => [bookmark]);
+    updateViewportBookmarks("/#room=two", () => []);
     expect(loadViewportBookmarks("/#room=one").value).toEqual([bookmark]);
     expect(loadViewportBookmarks("/#room=two").value).toEqual([]);
   });
@@ -122,16 +137,16 @@ describe("viewport bookmark helpers", () => {
       }),
     );
     expect(loadViewportBookmarks("/")).toEqual({
-      ok: true,
+      error: null,
       value: [{ id: "ok", name: "Fine", centerX: 1, centerY: 1, zoom: 1 }],
     });
   });
 
   it("reports unreadable storage instead of throwing", () => {
     localStorage.setItem(VIEWPORT_BOOKMARKS_STORAGE_KEY, "{not json");
-    expect(loadViewportBookmarks("/")).toEqual({ ok: false, value: [] });
+    expect(loadViewportBookmarks("/")).toEqual({ error: "load", value: [] });
     // a later save replaces the corrupt data
-    expect(saveViewportBookmarks("/", []).ok).toBe(true);
+    expect(updateViewportBookmarks("/", () => []).error).toBe(null);
   });
 
   it("picks the first free default name", () => {
@@ -150,6 +165,8 @@ describe("viewport bookmark helpers", () => {
 describe("<ViewportBookmarks/>", () => {
   beforeEach(async () => {
     localStorage.clear();
+    clearUnsavedViewportBookmarks();
+    window.history.replaceState({}, "", "/");
     unmountComponent();
     reseed(7);
     await render(<Excalidraw handleKeyboardGlobally={true} />);
@@ -255,6 +272,74 @@ describe("<ViewportBookmarks/>", () => {
     expect(h.state.zoom.value).toBe(1);
   });
 
+  it("keeps unsaved changes after the panel is closed and reopened", async () => {
+    const setItem = vi
+      .spyOn(window.localStorage, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError");
+      });
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    await open();
+    saveView("Unsaved");
+
+    fireEvent.keyDown(getPanel()!, { key: KEYS.ESCAPE });
+    await open();
+    expect(getBookmarkButton("Unsaved")).toBeTruthy();
+    expect(getError()?.textContent).toMatch(/unavailable or full/);
+
+    // once storage works again the next change stores the whole list
+    setItem.mockRestore();
+    saveView("Stored");
+    expect(getError()).toBeNull();
+    expect(storedFor().map((b: { name: string }) => b.name)).toEqual([
+      "Unsaved",
+      "Stored",
+    ]);
+  });
+
+  it("keeps bookmarks another tab saved while the panel was open", async () => {
+    await open();
+    // another tab saves to the same board after this panel loaded
+    updateViewportBookmarks(getBoardKey(), (current) => [
+      ...current,
+      { id: "other", name: "Other tab", centerX: 0, centerY: 0, zoom: 1 },
+    ]);
+    saveView("This tab");
+    expect(storedFor().map((b: { name: string }) => b.name)).toEqual([
+      "Other tab",
+      "This tab",
+    ]);
+    expect(getBookmarkButton("Other tab")).toBeTruthy();
+  });
+
+  it("shows another tab's changes when storage changes", async () => {
+    await open();
+    updateViewportBookmarks(getBoardKey(), () => [
+      { id: "other", name: "Other tab", centerX: 0, centerY: 0, zoom: 1 },
+    ]);
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent("storage", { key: VIEWPORT_BOOKMARKS_STORAGE_KEY }),
+      );
+    });
+    expect(getBookmarkButton("Other tab")).toBeTruthy();
+  });
+
+  it("leaves focus where the user moved it when a rename ends on blur", async () => {
+    await open();
+    saveView("Old");
+    fireEvent.keyDown(getBookmarkButton("Old"), { key: "F2" });
+    const input = screen.getByLabelText("New name for Old");
+    fireEvent.change(input, { target: { value: "New" } });
+
+    const nameInput = screen.getByLabelText("Bookmark name");
+    act(() => nameInput.focus());
+    fireEvent.blur(input);
+
+    expect(getBookmarkButton("New")).toBeTruthy();
+    expect(document.activeElement).toBe(nameInput);
+  });
+
   it("says so when storage cannot be read", async () => {
     vi.spyOn(window.localStorage, "getItem").mockImplementation(() => {
       throw new Error("SecurityError");
@@ -262,5 +347,61 @@ describe("<ViewportBookmarks/>", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     await open();
     expect(getError()?.textContent).toMatch(/could not be read/);
+  });
+});
+
+describe("<ViewportBookmarks/> board identity", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    clearUnsavedViewportBookmarks();
+    window.history.replaceState({}, "", "/");
+    unmountComponent();
+    reseed(7);
+  });
+
+  it("keeps boards that share a URL apart, also while the panel is open", async () => {
+    const { rerender } = await render(
+      <Excalidraw handleKeyboardGlobally={true} boardId="board-a" />,
+    );
+    await open();
+    saveView("On A");
+
+    rerender(<Excalidraw handleKeyboardGlobally={true} boardId="board-b" />);
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "On A" })).toBe(null),
+    );
+    saveView("On B");
+
+    rerender(<Excalidraw handleKeyboardGlobally={true} boardId="board-a" />);
+    await waitFor(() => expect(getBookmarkButton("On A")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: "On B" })).toBe(null);
+    expect(storedFor("/#board=a")).toBeUndefined();
+    expect(storedFor("/#board=board-a")).toHaveLength(1);
+    expect(storedFor("/#board=board-b")).toHaveLength(1);
+  });
+
+  it("follows a room started or left with pushState while open", async () => {
+    const { rerender } = await render(
+      <Excalidraw handleKeyboardGlobally={true} />,
+    );
+    await open();
+    saveView("Local");
+
+    // as Collab.startCollaboration does: pushState, then isCollaborating
+    window.history.pushState({}, "", "/#room=abc,secret");
+    rerender(<Excalidraw handleKeyboardGlobally={true} isCollaborating />);
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Local" })).toBe(null),
+    );
+    saveView("In room");
+    expect(storedFor("/#room=abc")).toHaveLength(1);
+
+    window.history.pushState({}, "", "/");
+    rerender(<Excalidraw handleKeyboardGlobally={true} />);
+    await waitFor(() => expect(getBookmarkButton("Local")).toBeTruthy());
+    expect(storedFor("/")).toHaveLength(1);
+    expect(localStorage.getItem(VIEWPORT_BOOKMARKS_STORAGE_KEY)).not.toContain(
+      "secret",
+    );
   });
 });

@@ -26,21 +26,22 @@ export type ViewportBookmark = {
 
 type StoredBookmarks = Record<string, ViewportBookmark[]>;
 
-export type BookmarkStorageResult<T> =
-  | { ok: true; value: T }
-  | { ok: false; value: T };
-
 /**
- * Bookmarks belong to the board open at this URL, in this browser only. The
- * board is the page path plus the first part of the hash, so a collaboration
- * room (`#room=<id>,<key>`) or shared link (`#json=<id>,<key>`) gets its own
- * bookmarks and the encryption key is never written to storage.
+ * Bookmarks belong to the board open in this browser only. A collaboration
+ * room (`#room=<id>,<key>`) or shared link (`#json=<id>,<key>`) is keyed by
+ * its id, so the encryption key is never written to storage. Otherwise the
+ * host's `boardId` tells apart boards that share a URL, such as the app's
+ * local boards.
  */
 export const getBoardKey = (
   location: Pick<Location, "pathname" | "hash"> = window.location,
+  boardId?: string | null,
 ) => {
   const hashId = location.hash.split(",")[0];
-  return `${location.pathname}${hashId}`;
+  if (hashId) {
+    return `${location.pathname}${hashId}`;
+  }
+  return boardId ? `${location.pathname}#board=${boardId}` : location.pathname;
 };
 
 const isFiniteNumber = (value: unknown): value is number =>
@@ -87,36 +88,57 @@ const readAll = (): StoredBookmarks => {
     : {};
 };
 
-/** bookmarks of one board; `ok` is false when storage could not be read */
-export const loadViewportBookmarks = (
-  boardKey: string,
-): BookmarkStorageResult<ViewportBookmark[]> => {
+/**
+ * Lists whose last write failed, by board. They are what the user sees until
+ * reload, so a closed and reopened panel does not lose them.
+ */
+const unsavedBookmarks = new Map<string, ViewportBookmark[]>();
+
+export const clearUnsavedViewportBookmarks = () => unsavedBookmarks.clear();
+
+export type BookmarkLoadResult = {
+  value: ViewportBookmark[];
+  /** "load": storage could not be read. "save": the list is not stored yet */
+  error: "load" | "save" | null;
+};
+
+/** bookmarks of one board, from the unsaved list when a write failed */
+export const loadViewportBookmarks = (boardKey: string): BookmarkLoadResult => {
+  const unsaved = unsavedBookmarks.get(boardKey);
+  if (unsaved) {
+    return { value: unsaved, error: "save" };
+  }
   try {
-    return { ok: true, value: parseBookmarks(readAll()[boardKey]) };
+    return { value: parseBookmarks(readAll()[boardKey]), error: null };
   } catch (error: any) {
     console.warn(`viewport bookmarks: could not read: ${error.message}`);
-    return { ok: false, value: [] };
+    return { value: [], error: "load" };
   }
 };
 
 /**
- * Replaces one board's bookmarks and leaves other boards' alone. `ok` is false
- * when storage is unavailable or full; the caller keeps its in-memory list.
+ * Applies `update` to the board's current list, read again now so changes
+ * another tab stored since the panel loaded are kept, and stores the result.
+ * Other boards are left alone. When storage is unavailable or full the result
+ * is kept in memory until reload.
  */
-export const saveViewportBookmarks = (
+export const updateViewportBookmarks = (
   boardKey: string,
-  bookmarks: readonly ViewportBookmark[],
-): BookmarkStorageResult<null> => {
+  update: (bookmarks: ViewportBookmark[]) => ViewportBookmark[],
+): BookmarkLoadResult => {
+  let all: StoredBookmarks;
   try {
-    let all: StoredBookmarks;
-    try {
-      all = readAll();
-    } catch {
-      // unreadable data is replaced rather than blocking every later save
-      all = {};
-    }
-    if (bookmarks.length) {
-      all[boardKey] = [...bookmarks];
+    all = readAll();
+  } catch {
+    // unreadable data is replaced rather than blocking every later save
+    all = {};
+  }
+  const next = update(
+    unsavedBookmarks.get(boardKey) ?? parseBookmarks(all[boardKey]),
+  ).slice(0, MAX_BOOKMARKS_PER_BOARD);
+  try {
+    if (next.length) {
+      all[boardKey] = next;
     } else {
       delete all[boardKey];
     }
@@ -124,10 +146,12 @@ export const saveViewportBookmarks = (
       VIEWPORT_BOOKMARKS_STORAGE_KEY,
       JSON.stringify(all),
     );
-    return { ok: true, value: null };
+    unsavedBookmarks.delete(boardKey);
+    return { value: next, error: null };
   } catch (error: any) {
     console.warn(`viewport bookmarks: could not save: ${error.message}`);
-    return { ok: false, value: null };
+    unsavedBookmarks.set(boardKey, next);
+    return { value: next, error: "save" };
   }
 };
 

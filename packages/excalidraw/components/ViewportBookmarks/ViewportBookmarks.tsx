@@ -4,7 +4,7 @@ import { KEYS } from "@excalidraw/common";
 
 import { atom, editorJotaiStore, useAtomValue } from "../../editor-jotai";
 import { t } from "../../i18n";
-import { useApp } from "../App";
+import { useApp, useAppProps } from "../App";
 import { CloseIcon, TrashIcon, pencilIcon } from "../icons";
 
 import {
@@ -14,14 +14,18 @@ import {
   getBoardKey,
   getBookmarkViewport,
   getDefaultBookmarkName,
+  VIEWPORT_BOOKMARKS_STORAGE_KEY,
   loadViewportBookmarks,
   normalizeBookmarkName,
-  saveViewportBookmarks,
+  updateViewportBookmarks,
 } from "./viewportBookmarkStore";
 
 import "./ViewportBookmarks.scss";
 
-import type { ViewportBookmark } from "./viewportBookmarkStore";
+import type {
+  BookmarkLoadResult,
+  ViewportBookmark,
+} from "./viewportBookmarkStore";
 
 import type { AppClassProperties } from "../../types";
 
@@ -50,7 +54,12 @@ export const ViewportBookmarks = () => {
 
 const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
   const app = useApp();
-  const [boardKey, setBoardKey] = useState(() => getBoardKey());
+  // the props context re-renders the panel when `boardId` or
+  // `isCollaborating` change, so the key below follows them
+  const { boardId } = useAppProps();
+  // bumped on history navigation, which changes the URL but no prop
+  const [, setLocationVersion] = useState(0);
+  const boardKey = getBoardKey(window.location, boardId);
   const [bookmarks, setBookmarks] = useState<ViewportBookmark[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
@@ -70,17 +79,41 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
         [],
     ).find((button) => button.dataset.bookmarkId === id);
 
-  // the board can change under the panel, for example when joining a room
+  const showResult = (result: BookmarkLoadResult) => {
+    setBookmarks(result.value);
+    setError(
+      result.error === "load"
+        ? t("viewportBookmarks.loadFailed")
+        : result.error === "save"
+        ? t("viewportBookmarks.saveFailed")
+        : null,
+    );
+  };
+
+  // the board can change under the panel: opening another local board changes
+  // `boardId`, and starting or leaving a room changes the URL with pushState,
+  // which fires no event but comes with a new `isCollaborating` prop
   useEffect(() => {
-    const onHashChange = () => setBoardKey(getBoardKey());
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    const onLocationChange = () => setLocationVersion((version) => version + 1);
+    window.addEventListener("hashchange", onLocationChange);
+    window.addEventListener("popstate", onLocationChange);
+    return () => {
+      window.removeEventListener("hashchange", onLocationChange);
+      window.removeEventListener("popstate", onLocationChange);
+    };
   }, []);
 
   useEffect(() => {
-    const result = loadViewportBookmarks(boardKey);
-    setBookmarks(result.value);
-    setError(result.ok ? null : t("viewportBookmarks.loadFailed"));
+    showResult(loadViewportBookmarks(boardKey));
+    // another tab may change this board's bookmarks while the panel is open
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === null || event.key === VIEWPORT_BOOKMARKS_STORAGE_KEY) {
+        showResult(loadViewportBookmarks(boardKey));
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardKey]);
 
   useEffect(() => {
@@ -96,11 +129,16 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
     (getBookmarkButton(id) ?? nameInputRef.current)?.focus();
   });
 
-  /** keeps the change in memory even when storage refuses it */
-  const commit = (next: ViewportBookmark[], message: string) => {
-    setBookmarks(next);
-    const result = saveViewportBookmarks(boardKey, next);
-    setError(result.ok ? null : t("viewportBookmarks.saveFailed"));
+  /**
+   * Applies the change to the board's stored list as it is now, so bookmarks
+   * another tab saved meanwhile are kept. The change stays in memory until
+   * reload when storage refuses it.
+   */
+  const commit = (
+    update: (current: ViewportBookmark[]) => ViewportBookmark[],
+    message: string,
+  ) => {
+    showResult(updateViewportBookmarks(boardKey, update));
     setAnnouncement(message);
   };
 
@@ -115,7 +153,7 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
       getDefaultBookmarkName(bookmarks, t("viewportBookmarks.defaultName"));
     const bookmark = createViewportBookmark(name, app.state);
     commit(
-      [...bookmarks, bookmark],
+      (current) => [...current, bookmark],
       t("viewportBookmarks.announceSaved", { name: bookmark.name }),
     );
     setNameInput("");
@@ -135,21 +173,32 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
     setRenameInput(bookmark.name);
   };
 
-  const finishRename = (bookmark: ViewportBookmark, apply: boolean) => {
+  /**
+   * `restoreFocus` is set for Enter and Escape. On blur focus has already
+   * moved where the user wanted, so it stays there.
+   */
+  const finishRename = (
+    bookmark: ViewportBookmark,
+    apply: boolean,
+    restoreFocus: boolean,
+  ) => {
     if (renamingIdRef.current !== bookmark.id) {
       return;
     }
     renamingIdRef.current = null;
     setRenamingId(null);
-    focusIdRef.current = bookmark.id;
+    if (restoreFocus) {
+      focusIdRef.current = bookmark.id;
+    }
     const name = normalizeBookmarkName(renameInput);
     if (!apply || !name || name === bookmark.name) {
       return;
     }
     commit(
-      bookmarks.map((entry) =>
-        entry.id === bookmark.id ? { ...entry, name } : entry,
-      ),
+      (current) =>
+        current.map((entry) =>
+          entry.id === bookmark.id ? { ...entry, name } : entry,
+        ),
       t("viewportBookmarks.announceRenamed", { name }),
     );
   };
@@ -159,7 +208,7 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
     const next = bookmarks.filter((entry) => entry.id !== bookmark.id);
     focusIdRef.current = (next[index] ?? next[index - 1])?.id ?? "";
     commit(
-      next,
+      (current) => current.filter((entry) => entry.id !== bookmark.id),
       t("viewportBookmarks.announceRemoved", { name: bookmark.name }),
     );
   };
@@ -278,15 +327,15 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
                     name: bookmark.name,
                   })}
                   onChange={(event) => setRenameInput(event.target.value)}
-                  onBlur={() => finishRename(bookmark, true)}
+                  onBlur={() => finishRename(bookmark, true, false)}
                   onKeyDown={(event) => {
                     if (event.key === KEYS.ENTER) {
                       event.preventDefault();
-                      finishRename(bookmark, true);
+                      finishRename(bookmark, true, true);
                     } else if (event.key === KEYS.ESCAPE) {
                       // cancels the rename without closing the panel
                       event.preventDefault();
-                      finishRename(bookmark, false);
+                      finishRename(bookmark, false, true);
                     }
                   }}
                 />

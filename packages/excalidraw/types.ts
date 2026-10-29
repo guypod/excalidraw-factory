@@ -602,6 +602,11 @@ export interface ExcalidrawProps {
    */
   onInitialize?: (api: ExcalidrawImperativeAPI) => void;
   isCollaborating?: boolean;
+  /**
+   * Stable id of the board the host has open, when several boards share one
+   * URL. Viewport bookmarks are kept per board id. Never a display name.
+   */
+  boardId?: string | null;
   onPointerUpdate?: (payload: {
     pointer: { x: number; y: number; tool: "pointer" | "laser" };
     button: "down" | "up";
