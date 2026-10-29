@@ -7,6 +7,7 @@ import type { ExcalidrawElement } from "@excalidraw/element/types";
 import {
   MIN_READABLE_FONT_SIZE,
   getContrastRatio,
+  getFindingStatus,
   getReadabilityReport,
   hasReadabilityTargets,
 } from "../components/ReadabilityReport/readability";
@@ -181,13 +182,16 @@ describe("readability checks", () => {
 
   it("explains instead of guessing for transparent and pattern backgrounds", () => {
     const fadedText = API.createElement({ type: "text", opacity: 50 });
-    expect(reportFor([fadedText]).findings[0]).toEqual(
+    const fadedFinding = reportFor([fadedText]).findings[0];
+    expect(fadedFinding).toEqual(
       expect.objectContaining({
         contrastRatio: null,
         limitation: "transparentText",
         issues: [],
       }),
     );
+    // no measured issue, but contrast is unknown: not a readable verdict
+    expect(getFindingStatus(fadedFinding)).toBe("unchecked");
 
     const [hatched, label] = createLabelled({
       container: { backgroundColor: "#a5d8ff", fillStyle: "hachure" },
@@ -217,6 +221,37 @@ describe("readability checks", () => {
         viewBackgroundColor: "transparent",
       }).findings[0].limitation,
     ).toBe("transparentCanvas");
+  });
+
+  it("only calls a finding readable when every check ran", () => {
+    expect(getFindingStatus({ issues: [], limitation: null })).toBe("readable");
+    expect(
+      getFindingStatus({ issues: [], limitation: "patternBackground" }),
+    ).toBe("unchecked");
+    // a measured problem is reported even when contrast was not checked
+    expect(
+      getFindingStatus({ issues: ["tinyText"], limitation: "transparentText" }),
+    ).toBe("issue");
+  });
+
+  it("checks arrow labels against the canvas, not the arrow's fill", () => {
+    const arrow = API.createElement({
+      type: "arrow",
+      id: "labelled-arrow",
+      backgroundColor: "#1e1e1e",
+      fillStyle: "solid",
+      boundElements: [{ type: "text", id: "arrow-label" }],
+    });
+    const label = API.createElement({
+      type: "text",
+      id: "arrow-label",
+      strokeColor: "#ffffff",
+      containerId: arrow.id,
+    });
+    const [finding] = reportFor([arrow], [arrow, label]).findings;
+    expect(finding.backgroundSource).toBe("canvas");
+    expect(finding.contrastRatio).toBeCloseTo(1, 5);
+    expect(finding.issues).toEqual(["lowContrast"]);
   });
 
   it("skips selected elements without text and reports each text once", () => {
@@ -319,6 +354,96 @@ describe("<ReadabilityReportDialog/>", () => {
     expect(
       queryByTestId(getDialog()!, "readability-report-notes")!.textContent,
     ).toContain("Check those by eye.");
+  });
+
+  it("does not call unmeasured text readable", async () => {
+    const control = API.createElement({
+      type: "text",
+      text: "Measured control",
+      fontSize: 20,
+      strokeColor: "#1e1e1e",
+    });
+    const faded = API.createElement({
+      type: "text",
+      text: "Faded normal text",
+      fontSize: 20,
+      opacity: 50,
+    });
+    const [hatched, hatchedLabel] = createLabelled({
+      container: { backgroundColor: "#a5d8ff", fillStyle: "hachure" },
+      label: { text: "Hatched label", fontSize: 20 },
+    });
+    API.setElements([control, faded, hatched, hatchedLabel]);
+    API.setSelectedElements([control, faded, hatched]);
+    const before = h.elements;
+    const selectionBefore = h.state.selectedElementIds;
+    const undoStackSize = API.getUndoStack().length;
+
+    await openDialog();
+    const dialog = getDialog()!;
+    const summary = queryByTestId(
+      dialog,
+      "readability-report-summary",
+    )!.textContent;
+    expect(summary).toBe("2 of 3 text(s) could not be fully checked.");
+    expect(summary).not.toContain("look readable");
+
+    const ok = queryByTestId(dialog, `readability-finding-${control.id}`)!;
+    expect(ok.getAttribute("data-status")).toBe("readable");
+    expect(ok.textContent).toContain("Readable");
+    expect(ok.textContent).toContain("Contrast");
+
+    const fadedItem = queryByTestId(dialog, `readability-finding-${faded.id}`)!;
+    expect(fadedItem.getAttribute("data-status")).toBe("unchecked");
+    expect(fadedItem.textContent).toContain("Not fully checked");
+    expect(fadedItem.textContent).not.toContain("Readable");
+    expect(fadedItem.textContent).toContain("the text is semi-transparent");
+
+    const hatchedItem = queryByTestId(
+      dialog,
+      `readability-finding-${hatchedLabel.id}`,
+    )!;
+    expect(hatchedItem.getAttribute("data-status")).toBe("unchecked");
+    expect(hatchedItem.textContent).toContain("Not fully checked");
+    expect(hatchedItem.textContent).not.toContain("Readable");
+    expect(hatchedItem.textContent).toContain("hatch or pattern fill");
+
+    fireEvent.click(queryByTestId(dialog, "readability-report-close")!);
+    expect(getDialog()).toBeNull();
+    expect(h.elements).toBe(before);
+    expect(h.state.selectedElementIds).toEqual(selectionBefore);
+    expect(API.getUndoStack().length).toBe(undoStackSize);
+  });
+
+  it("counts measured issues and unchecked text separately", async () => {
+    const { box, label } = createExampleScene();
+    const faded = API.createElement({ type: "text", opacity: 50 });
+    API.setElements([box, label, faded]);
+    API.setSelectedElements([box, faded]);
+
+    await openDialog();
+    expect(
+      queryByTestId(getDialog()!, "readability-report-summary")!.textContent,
+    ).toBe(
+      "1 of 2 text(s) may be hard to read. 1 of 2 text(s) could not be fully checked.",
+    );
+  });
+
+  it("keeps the full text of long labels so entries stay distinguishable", async () => {
+    const prefix = "A long label that shares the same opening words, ";
+    const first = API.createElement({ type: "text", text: `${prefix}first` });
+    const second = API.createElement({ type: "text", text: `${prefix}second` });
+    API.setElements([first, second]);
+    API.setSelectedElements([first, second]);
+
+    await openDialog();
+    const dialog = getDialog()!;
+    expect(
+      queryByTestId(dialog, `readability-finding-${first.id}`)!.textContent,
+    ).toContain(`${prefix}first`);
+    expect(
+      queryByTestId(dialog, `readability-finding-${second.id}`)!.textContent,
+    ).toContain(`${prefix}second`);
   });
 
   it("is keyboard accessible and keeps keys away from the editor", async () => {

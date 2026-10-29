@@ -8,23 +8,33 @@ import { useApp, useExcalidrawContainer } from "../App";
 import { Dialog } from "../Dialog";
 import DialogActionButton from "../DialogActionButton";
 
-import { MIN_READABLE_FONT_SIZE, getReadabilityReport } from "./readability";
+import {
+  MIN_READABLE_FONT_SIZE,
+  getFindingStatus,
+  getReadabilityReport,
+} from "./readability";
 
 import "./ReadabilityReportDialog.scss";
 
-import type { ReadabilityFinding } from "./readability";
+import type { ReadabilityFinding, ReadabilityStatus } from "./readability";
 
-const MAX_TEXT_PREVIEW_LENGTH = 40;
+// the full text stays in the DOM so screen readers can tell entries apart;
+// the stylesheet truncates it visually
+const getTextPreview = (text: string) => text.replace(/\s+/g, " ").trim();
 
-const getTextPreview = (text: string) => {
-  const line = text.replace(/\s+/g, " ").trim();
-  return line.length > MAX_TEXT_PREVIEW_LENGTH
-    ? `${line.slice(0, MAX_TEXT_PREVIEW_LENGTH - 1)}…`
-    : line;
+const STATUS_LABELS: Record<
+  ReadabilityStatus,
+  | "readabilityReport.readable"
+  | "readabilityReport.needsAttention"
+  | "readabilityReport.notChecked"
+> = {
+  readable: "readabilityReport.readable",
+  issue: "readabilityReport.needsAttention",
+  unchecked: "readabilityReport.notChecked",
 };
 
 const FindingItem = ({ finding }: { finding: ReadabilityFinding }) => {
-  const readable = !finding.issues.length;
+  const status = getFindingStatus(finding);
   const details: string[] = [];
 
   details.push(
@@ -48,20 +58,20 @@ const FindingItem = ({ finding }: { finding: ReadabilityFinding }) => {
     details.push(t(`readabilityReport.limitations.${finding.limitation}`));
   }
 
+  const preview = getTextPreview(finding.text);
+
   return (
     <li
       className="ReadabilityReport__finding"
       data-testid={`readability-finding-${finding.id}`}
-      data-status={readable ? "readable" : "issue"}
+      data-status={status}
       tabIndex={0}
     >
       <span className="ReadabilityReport__findingStatus">
-        {readable
-          ? t("readabilityReport.readable")
-          : t("readabilityReport.needsAttention")}
+        {t(STATUS_LABELS[status])}
       </span>
-      <span className="ReadabilityReport__findingText">
-        {getTextPreview(finding.text) || t("readabilityReport.emptyText")}
+      <span className="ReadabilityReport__findingText" title={preview}>
+        {preview || t("readabilityReport.emptyText")}
       </span>
       <span className="ReadabilityReport__findingDetails">
         {details.join(" ")}
@@ -93,19 +103,35 @@ export const ReadabilityReportDialog = ({
     [],
   );
 
-  const issueCount = report.findings.filter(
-    (finding) => finding.issues.length,
+  const statuses = report.findings.map(getFindingStatus);
+  const issueCount = statuses.filter((status) => status === "issue").length;
+  const uncheckedCount = statuses.filter(
+    (status) => status === "unchecked",
   ).length;
   const hasLimitations = report.findings.some((finding) => finding.limitation);
 
   let summary: string;
   if (!report.findings.length) {
     summary = t("readabilityReport.empty");
-  } else if (issueCount) {
-    summary = t("readabilityReport.summaryIssues", {
-      count: issueCount,
-      total: report.findings.length,
-    });
+  } else if (issueCount || uncheckedCount) {
+    const parts: string[] = [];
+    if (issueCount) {
+      parts.push(
+        t("readabilityReport.summaryIssues", {
+          count: issueCount,
+          total: report.findings.length,
+        }),
+      );
+    }
+    if (uncheckedCount) {
+      parts.push(
+        t("readabilityReport.summaryUnchecked", {
+          count: uncheckedCount,
+          total: report.findings.length,
+        }),
+      );
+    }
+    summary = parts.join(" ");
   } else {
     summary = t("readabilityReport.summaryReadable", {
       total: report.findings.length,

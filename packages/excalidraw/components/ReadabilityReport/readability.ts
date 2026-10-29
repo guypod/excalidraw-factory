@@ -7,6 +7,7 @@ import {
 import {
   getBoundTextElement,
   hasBoundTextElement,
+  isArrowElement,
   isBoundToContainer,
   isTextElement,
 } from "@excalidraw/element";
@@ -122,7 +123,13 @@ const measureContrast = (
   let backgroundSource: ReadabilityBackgroundSource = "canvas";
   let background = appState.viewBackgroundColor;
 
-  if (container && !isTransparent(container.backgroundColor)) {
+  // arrow labels are drawn on an area cleared out of the arrow, so the canvas
+  // shows through behind them whatever the arrow's own fill is
+  if (
+    container &&
+    !isArrowElement(container) &&
+    !isTransparent(container.backgroundColor)
+  ) {
     backgroundSource = "container";
     if (container.fillStyle !== "solid") {
       return {
@@ -231,6 +238,22 @@ export const getReadabilityReport = (
   }
 
   return { findings, skippedCount };
+};
+
+export type ReadabilityStatus = "readable" | "issue" | "unchecked";
+
+/**
+ * A finding is readable only when every check ran and passed. A measured
+ * problem wins over a limitation; otherwise a check that could not run leaves
+ * the verdict unknown rather than readable.
+ */
+export const getFindingStatus = (
+  finding: Pick<ReadabilityFinding, "issues" | "limitation">,
+): ReadabilityStatus => {
+  if (finding.issues.length) {
+    return "issue";
+  }
+  return finding.limitation ? "unchecked" : "readable";
 };
 
 /** Whether the selection has any text the report can check. */
