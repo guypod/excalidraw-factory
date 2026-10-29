@@ -438,6 +438,7 @@ import ConvertElementTypePopup, {
   convertElementTypePopupAtom,
   convertElementTypes,
 } from "./ConvertElementTypePopup";
+import { framePresentationAtom } from "./FramePresentation";
 
 import { activeConfirmDialogAtom } from "./ActiveConfirmDialog";
 import BraveMeasureTextError from "./BraveMeasureTextError";
@@ -2146,6 +2147,9 @@ class App extends React.Component<AppProps, AppState> {
             this.state.viewModeEnabled ||
             this.state.openDialog?.name === "elementLinkSelector",
           "excalidraw--mobile": this.editorInterface.formFactor === "phone",
+          "excalidraw--presenting": !!editorJotaiStore.get(
+            framePresentationAtom,
+          ),
         })}
         style={{
           ["--ui-pointerEvents" as any]: shouldBlockPointerEvents

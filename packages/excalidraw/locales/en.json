@@ -226,6 +226,16 @@
     "emptyTitle": "Nothing to outline yet",
     "emptyHint": "Add a frame or some text, or put a label on a shape, and it will show up here."
   },
+  "framePresentation": {
+    "title": "Present frames",
+    "hint": "Right arrow, Page Down or Space for the next frame. Left arrow, Page Up or Shift+Space for the previous one. Home and End jump to the first and last frame. Escape exits.",
+    "previous": "Previous frame",
+    "next": "Next frame",
+    "exit": "Exit presentation",
+    "position": "{{current}} of {{total}}",
+    "emptyTitle": "No frames to present",
+    "emptyHint": "Add a frame and put something in it, and it will show up here."
+  },
   "buttons": {
     "clearReset": "Reset the canvas",
     "exportJSON": "Export to file",

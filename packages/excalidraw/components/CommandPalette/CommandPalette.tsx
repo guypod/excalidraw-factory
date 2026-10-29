@@ -47,6 +47,7 @@ import {
   UnlockedIcon,
   searchIcon,
   outlineIcon,
+  presentationIcon,
   boltIcon,
   bucketFillIcon,
   ExportImageIcon,
@@ -61,6 +62,7 @@ import { SHAPES } from "../shapes";
 import { canChangeBackgroundColor, canChangeStrokeColor } from "../Actions";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { activeConfirmDialogAtom } from "../ActiveConfirmDialog";
+import { startFramePresentation } from "../FramePresentation";
 import { useStable } from "../../hooks/useStable";
 
 import { Ellipsify } from "../Ellipsify";
@@ -471,6 +473,22 @@ function CommandPaletteInner({
                 tab: CANVAS_OUTLINE_TAB,
               },
             });
+          },
+        },
+        {
+          label: t("framePresentation.title"),
+          keywords: [
+            "present",
+            "presentation",
+            "slides",
+            "slideshow",
+            "frames",
+          ],
+          category: DEFAULT_CATEGORIES.app,
+          icon: presentationIcon,
+          viewMode: true,
+          perform: () => {
+            startFramePresentation(app);
           },
         },
         {
