@@ -17,11 +17,11 @@ import {
   loadViewportBookmarks,
   normalizeBookmarkName,
   saveViewportBookmarks,
-} from "./viewportBookmarks";
+} from "./viewportBookmarkStore";
 
 import "./ViewportBookmarks.scss";
 
-import type { ViewportBookmark } from "./viewportBookmarks";
+import type { ViewportBookmark } from "./viewportBookmarkStore";
 
 import type { AppClassProperties } from "../../types";
 

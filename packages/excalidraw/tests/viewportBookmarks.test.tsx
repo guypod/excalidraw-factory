@@ -11,7 +11,7 @@ import {
   getDefaultBookmarkName,
   loadViewportBookmarks,
   saveViewportBookmarks,
-} from "../components/ViewportBookmarks/viewportBookmarks";
+} from "../components/ViewportBookmarks/viewportBookmarkStore";
 import { openViewportBookmarks } from "../components/ViewportBookmarks/ViewportBookmarks";
 
 import { API } from "./helpers/api";
