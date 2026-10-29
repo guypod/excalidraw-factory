@@ -108,6 +108,9 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
   const focusIdRef = useRef<string | null>(null);
   // a rename ends once, whether by Enter, Escape or blur
   const renamingIdRef = useRef<string | null>(null);
+  // the name shown when the rename began, which another tab may change while
+  // the input is open
+  const renameFromRef = useRef("");
 
   const getBookmarkButton = (id: string) =>
     Array.from(
@@ -217,6 +220,7 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
 
   const startRename = (bookmark: ViewportBookmark) => {
     renamingIdRef.current = bookmark.id;
+    renameFromRef.current = bookmark.name;
     setRenamingId(bookmark.id);
     setRenameInput(bookmark.name);
   };
@@ -238,12 +242,13 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
     if (restoreFocus) {
       focusIdRef.current = bookmark.id;
     }
+    const from = renameFromRef.current;
     const name = normalizeBookmarkName(renameInput);
-    if (!apply || !name || name === bookmark.name) {
+    if (!apply || !name || name === from) {
       return;
     }
     commit(
-      { type: "rename", id: bookmark.id, from: bookmark.name, name },
+      { type: "rename", id: bookmark.id, from, name },
       t("viewportBookmarks.announceRenamed", { name }),
     );
   };

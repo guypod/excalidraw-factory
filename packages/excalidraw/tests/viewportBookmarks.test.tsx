@@ -289,6 +289,62 @@ describe("viewport bookmark helpers", () => {
     expect(storedFor("/")).toHaveLength(50);
   });
 
+  it("keeps pending changes while storage cannot be read", () => {
+    const bookmark = (id: string, name: string) => ({
+      id,
+      name,
+      centerX: 0,
+      centerY: 0,
+      zoom: 1,
+    });
+    localStorage.setItem(
+      VIEWPORT_BOOKMARKS_STORAGE_KEY,
+      JSON.stringify({
+        "/": [bookmark("a", "A")],
+        "/other": [bookmark("o", "O")],
+      }),
+    );
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const setItem = vi
+      .spyOn(window.localStorage, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError");
+      });
+    updateViewportBookmarks("/", {
+      type: "rename",
+      id: "a",
+      from: "A",
+      name: "B",
+    });
+    const getItem = vi
+      .spyOn(window.localStorage, "getItem")
+      .mockImplementation(() => {
+        throw new Error("SecurityError");
+      });
+    const blind = updateViewportBookmarks("/", {
+      type: "add",
+      bookmark: bookmark("c", "C"),
+    });
+    // the rename is not rejected against an unknown list
+    expect(blind).toMatchObject({ error: "save", rejected: [] });
+    expect(blind.value.map((entry) => entry.name)).toEqual(["B", "C"]);
+    expect(loadViewportBookmarks("/")).toMatchObject({
+      error: "load",
+      value: [{ name: "B" }, { name: "C" }],
+    });
+    getItem.mockRestore();
+    setItem.mockRestore();
+
+    // nothing was written while storage could not be read
+    expect(storedFor("/")).toEqual([bookmark("a", "A")]);
+    expect(
+      updateViewportBookmarks("/", { type: "remove", id: "c", name: "C" }),
+    ).toMatchObject({ error: null, rejected: [] });
+    expect(storedFor("/")).toEqual([bookmark("a", "B")]);
+    expect(storedFor("/other")).toEqual([bookmark("o", "O")]);
+    vi.restoreAllMocks();
+  });
+
   it("picks the first free default name", () => {
     const at = (name: string) => ({
       id: name,
@@ -557,6 +613,35 @@ describe("<ViewportBookmarks/>", () => {
     expect(
       screen.getByTestId("viewport-bookmarks-announcement").textContent,
     ).toMatch(/removed in another tab/);
+  });
+
+  it("reports a rename another tab made while the rename was open", async () => {
+    await open();
+    saveView("Old");
+    const [saved] = storedFor();
+
+    fireEvent.keyDown(getBookmarkButton("Old"), { key: "F2" });
+    const input = screen.getByLabelText("New name for Old");
+    fireEvent.change(input, { target: { value: "Mine" } });
+    // another tab renames it while the input is open
+    localStorage.setItem(
+      VIEWPORT_BOOKMARKS_STORAGE_KEY,
+      JSON.stringify({ [getBoardKey()]: [{ ...saved, name: "Theirs" }] }),
+    );
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent("storage", { key: VIEWPORT_BOOKMARKS_STORAGE_KEY }),
+      );
+    });
+    fireEvent.keyDown(screen.getByLabelText("New name for Theirs"), {
+      key: KEYS.ENTER,
+    });
+
+    expect(storedFor()).toEqual([{ ...saved, name: "Theirs" }]);
+    expect(
+      screen.getByTestId("viewport-bookmarks-announcement").textContent,
+    ).toMatch(/Theirs/);
+    expect(screen.queryByRole("button", { name: "Mine" })).toBe(null);
   });
 
   it("leaves focus where the user moved it when a rename ends on blur", async () => {

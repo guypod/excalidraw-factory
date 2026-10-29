@@ -77,8 +77,12 @@ const parseBookmarks = (value: unknown): ViewportBookmark[] => {
     }));
 };
 
-const readAll = (): StoredBookmarks => {
-  const raw = window.localStorage.getItem(VIEWPORT_BOOKMARKS_STORAGE_KEY);
+/** throws when storage itself cannot be read, as in some privacy modes */
+const readRaw = () =>
+  window.localStorage.getItem(VIEWPORT_BOOKMARKS_STORAGE_KEY);
+
+/** throws when the stored data is not JSON */
+const parseAll = (raw: string | null): StoredBookmarks => {
   if (!raw) {
     return {};
   }
@@ -168,22 +172,83 @@ const replayOperations = (
  */
 const pendingOperations = new Map<string, BookmarkOperation[]>();
 
-export const clearUnsavedViewportBookmarks = () => pendingOperations.clear();
+/**
+ * Each board's list as last read from storage. When storage cannot be read it
+ * stands in for the stored list, so pending changes to bookmarks this tab has
+ * seen are not rejected against an empty list.
+ */
+const lastStored = new Map<string, ViewportBookmark[]>();
+
+export const clearUnsavedViewportBookmarks = () => {
+  pendingOperations.clear();
+  lastStored.clear();
+};
+
+/**
+ * The board's stored list, and the whole stored record to write back into.
+ * "unavailable": storage cannot be read, so nothing may be written over it.
+ * "corrupt": the data is unreadable and is replaced by the next write, with
+ * this board's last read list kept.
+ */
+const readBoard = (
+  boardKey: string,
+):
+  | { all: StoredBookmarks; bookmarks: ViewportBookmark[]; error: null }
+  | { all: null; bookmarks: ViewportBookmark[]; error: "unavailable" }
+  | {
+      all: StoredBookmarks;
+      bookmarks: ViewportBookmark[];
+      error: "corrupt";
+    } => {
+  let raw: string | null;
+  try {
+    raw = readRaw();
+  } catch (error: any) {
+    console.warn(`viewport bookmarks: could not read: ${error.message}`);
+    return {
+      all: null,
+      bookmarks: lastStored.get(boardKey) ?? [],
+      error: "unavailable",
+    };
+  }
+  let all: StoredBookmarks;
+  try {
+    all = parseAll(raw);
+  } catch (error: any) {
+    console.warn(`viewport bookmarks: could not read: ${error.message}`);
+    return {
+      all: {},
+      bookmarks: lastStored.get(boardKey) ?? [],
+      error: "corrupt",
+    };
+  }
+  const bookmarks = parseBookmarks(all[boardKey]);
+  lastStored.set(boardKey, bookmarks);
+  return { all, bookmarks, error: null };
+};
 
 /** bookmarks of one board, with this tab's unsaved changes applied */
 export const loadViewportBookmarks = (boardKey: string): BookmarkLoadResult => {
-  let stored: ViewportBookmark[];
-  try {
-    stored = parseBookmarks(readAll()[boardKey]);
-  } catch (error: any) {
-    console.warn(`viewport bookmarks: could not read: ${error.message}`);
-    return { value: [], error: "load", rejected: [] };
-  }
+  const stored = readBoard(boardKey);
   const pending = pendingOperations.get(boardKey);
-  if (!pending) {
-    return { value: stored, error: null, rejected: [] };
+  if (stored.error) {
+    // without the stored list nothing is known to be impossible, so every
+    // pending change is kept
+    return {
+      value: pending
+        ? replayOperations(stored.bookmarks, pending).value
+        : stored.bookmarks,
+      error: "load",
+      rejected: [],
+    };
   }
-  const { value, applied, rejected } = replayOperations(stored, pending);
+  if (!pending) {
+    return { value: stored.bookmarks, error: null, rejected: [] };
+  }
+  const { value, applied, rejected } = replayOperations(
+    stored.bookmarks,
+    pending,
+  );
   // a change another tab made impossible is reported once, then dropped
   if (applied.length) {
     pendingOperations.set(boardKey, applied);
@@ -202,17 +267,27 @@ export const updateViewportBookmarks = (
   boardKey: string,
   operation: BookmarkOperation,
 ): BookmarkLoadResult => {
-  let all: StoredBookmarks;
-  try {
-    all = readAll();
-  } catch {
-    // unreadable data is replaced rather than blocking every later save
-    all = {};
-  }
+  const stored = readBoard(boardKey);
+  const operations = [...(pendingOperations.get(boardKey) ?? []), operation];
   const { value, applied, rejected } = replayOperations(
-    parseBookmarks(all[boardKey]),
-    [...(pendingOperations.get(boardKey) ?? []), operation],
+    stored.bookmarks,
+    operations,
   );
+  if (!stored.all) {
+    // storage cannot be read: writing could overwrite other tabs' changes,
+    // and rejecting against the last read list could drop valid changes, so
+    // everything is kept to replay once storage can be read again. Only a
+    // change that is impossible even on the last read list is reported.
+    const ownRejection = rejected.filter(
+      (entry) => entry.operation === operation,
+    );
+    pendingOperations.set(
+      boardKey,
+      ownRejection.length ? operations.slice(0, -1) : operations,
+    );
+    return { value, error: "save", rejected: ownRejection };
+  }
+  const all = stored.all;
   try {
     if (value.length) {
       all[boardKey] = value;
@@ -224,6 +299,7 @@ export const updateViewportBookmarks = (
       JSON.stringify(all),
     );
     pendingOperations.delete(boardKey);
+    lastStored.set(boardKey, value);
     return { value, error: null, rejected };
   } catch (error: any) {
     console.warn(`viewport bookmarks: could not save: ${error.message}`);
