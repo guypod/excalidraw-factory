@@ -48,6 +48,7 @@ import { isSidebarDockedAtom } from "./Sidebar/Sidebar";
 import MainMenu from "./main-menu/MainMenu";
 import { ActiveConfirmDialog } from "./ActiveConfirmDialog";
 import { FramePresentation } from "./FramePresentation";
+import { WorkshopTimer } from "./WorkshopTimer/WorkshopTimer";
 import { useEditorInterface, useStylesPanelMode } from "./App";
 import { OverwriteConfirmDialog } from "./OverwriteConfirm/OverwriteConfirm";
 import { sidebarRightIcon } from "./icons";
@@ -546,6 +547,7 @@ const LayerUI = ({
       )}
       <ActiveConfirmDialog />
       <FramePresentation />
+      <WorkshopTimer />
       {appState.openDialog?.name === "elementLinkSelector" && (
         <ElementLinkDialog
           sourceElementId={appState.openDialog.sourceElementId}

@@ -49,6 +49,7 @@ import {
   searchIcon,
   outlineIcon,
   presentationIcon,
+  timerIcon,
   boltIcon,
   bucketFillIcon,
   ExportImageIcon,
@@ -66,6 +67,7 @@ import { canChangeBackgroundColor, canChangeStrokeColor } from "../Actions";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { activeConfirmDialogAtom } from "../ActiveConfirmDialog";
 import { startFramePresentation } from "../FramePresentation";
+import { openWorkshopTimer } from "../WorkshopTimer/WorkshopTimer";
 import { useStable } from "../../hooks/useStable";
 
 import { Ellipsify } from "../Ellipsify";
@@ -492,6 +494,16 @@ function CommandPaletteInner({
           viewMode: true,
           perform: () => {
             startFramePresentation(app);
+          },
+        },
+        {
+          label: t("workshopTimer.title"),
+          keywords: ["timer", "countdown", "timebox", "clock", "workshop"],
+          category: DEFAULT_CATEGORIES.app,
+          icon: timerIcon,
+          viewMode: true,
+          perform: () => {
+            openWorkshopTimer(app);
           },
         },
         {
