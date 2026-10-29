@@ -3,7 +3,10 @@ import React from "react";
 import { KEYS, reseed } from "@excalidraw/common";
 import { CaptureUpdateAction } from "@excalidraw/element";
 
-import type { ExcalidrawElement } from "@excalidraw/element/types";
+import type {
+  ExcalidrawArrowElement,
+  ExcalidrawElement,
+} from "@excalidraw/element/types";
 
 import {
   applyTidyLayout,
@@ -93,7 +96,7 @@ const createBoundScene = () => {
     height: 300,
     startBinding: { elementId: a.id, fixedPoint: [1, 0.5], mode: "orbit" },
     endBinding: { elementId: b.id, fixedPoint: [0, 0.5], mode: "orbit" },
-  } as any);
+  } as any) as unknown as ExcalidrawArrowElement;
   h.app.scene.mutateElement(a, {
     boundElements: [...a.boundElements!, { type: "arrow", id: arrow.id }],
   });
