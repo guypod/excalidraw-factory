@@ -193,17 +193,18 @@ describe("tidy grid layout", () => {
     } as any);
     const frame = API.createElement({ type: "frame", x: 2000 });
     const deleted = API.createElement({ type: "diamond", isDeleted: true });
+    const locked = API.createElement({ type: "ellipse", locked: true });
     const loose = API.createElement({ type: "arrow", x: 1500 });
     const elementsMap = new Map(
-      [a, b, arrow, frame, deleted, loose].map((el) => [el.id, el]),
+      [a, b, arrow, frame, deleted, locked, loose].map((el) => [el.id, el]),
     );
     const { units, skippedCount } = getTidyUnits(
-      [arrow, frame, deleted, loose] as any,
+      [arrow, frame, deleted, locked, loose] as any,
       elementsMap as any,
       noGroups,
     );
     expect(units.map((unit) => unit.elements[0].id)).toEqual([loose.id]);
-    expect(skippedCount).toBe(2);
+    expect(skippedCount).toBe(3);
     expect(hasTidyTargets([frame, loose])).toBe(false);
     expect(hasTidyTargets([a, loose])).toBe(true);
   });
@@ -395,6 +396,119 @@ describe("<TidyGridDialog/>", () => {
     expect(h.state.activeTool.type).toBe("selection");
     expect(getById(a.id).isDeleted).toBe(false);
     expect(getDialog()).not.toBeNull();
+  });
+
+  it("arranges the scene as it is when Apply is pressed", async () => {
+    const a = API.createElement({ type: "rectangle", width: 100 });
+    const b = API.createElement({ type: "rectangle", x: 300, width: 100 });
+    API.setElements([a, b]);
+    API.setSelectedElements([a, b]);
+
+    await openDialog();
+    setInput("tidy-grid-per-line", "2");
+    setInput("tidy-grid-gap", "0");
+    // the scene is updated while the dialog is open
+    act(() => {
+      API.updateScene({
+        elements: h.elements.map((el) =>
+          el.id === b.id ? { ...el, y: 500, width: 50 } : el,
+        ),
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+    });
+    fireEvent.click(getApplyButton());
+
+    // b sits right of a, laid out from its new position and size
+    expect([getById(a.id).x, getById(a.id).y]).toEqual([a.x, a.y]);
+    expect([getById(b.id).x, getById(b.id).y]).toEqual([a.x + 100, a.y]);
+    expect(getById(b.id).width).toBe(50);
+  });
+
+  it.each([
+    ["locked", { locked: true }],
+    ["deleted", { isDeleted: true }],
+  ])(
+    "leaves an item %s while the dialog is open where it is",
+    async (_, update) => {
+      const a = API.createElement({ type: "rectangle" });
+      const b = API.createElement({ type: "rectangle", x: 300 });
+      const c = API.createElement({ type: "rectangle", x: 600, y: 300 });
+      API.setElements([a, b, c]);
+      API.setSelectedElements([a, b, c]);
+      const undoStackSize = API.getUndoStack().length;
+
+      await openDialog();
+      setInput("tidy-grid-per-line", "1");
+      act(() => {
+        API.updateScene({
+          elements: h.elements.map((el) =>
+            el.id === b.id ? { ...el, ...update } : el,
+          ),
+          captureUpdate: CaptureUpdateAction.NEVER,
+        });
+      });
+      const changed = getById(b.id);
+      fireEvent.click(getApplyButton());
+
+      expect(getById(b.id)).toBe(changed);
+      expect([getById(a.id).x, getById(a.id).y]).toEqual([a.x, a.y]);
+      expect([getById(c.id).x, getById(c.id).y]).toEqual([
+        a.x,
+        a.y + a.height + 20,
+      ]);
+      expect(API.getUndoStack().length).toBe(undoStackSize + 1);
+    },
+  );
+
+  it("applies nothing when fewer than two items are left by Apply", async () => {
+    const a = API.createElement({ type: "rectangle" });
+    const b = API.createElement({ type: "rectangle", x: 300, y: 300 });
+    API.setElements([a, b]);
+    API.setSelectedElements([a, b]);
+    const undoStackSize = API.getUndoStack().length;
+
+    await openDialog();
+    act(() => {
+      API.updateScene({
+        elements: h.elements.map((el) =>
+          el.id === b.id ? { ...el, locked: true } : el,
+        ),
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+    });
+    const before = h.elements;
+    fireEvent.click(getApplyButton());
+
+    h.elements.forEach((el, i) => expect(el).toBe(before[i]));
+    expect(API.getUndoStack().length).toBe(undoStackSize);
+  });
+
+  it("never moves a deleted element passed in a unit", () => {
+    const a = API.createElement({ type: "rectangle", x: 0 });
+    const b = API.createElement({ type: "rectangle", x: 500, y: 500 });
+    const { units } = getTidyUnits([a, b], new Map() as any, noGroups);
+    const deletedB = { ...b, isDeleted: true };
+    const { elements, changedIds } = applyTidyLayout([a, deletedB], units, {
+      direction: "rows",
+      perLine: 2,
+      gap: 0,
+    });
+    expect(elements[1]).toBe(deletedB);
+    expect(changedIds.has(b.id)).toBe(false);
+  });
+
+  it("keeps Shift+Tab inside the dialog from the checked radio", async () => {
+    const a = API.createElement({ type: "rectangle" });
+    const b = API.createElement({ type: "rectangle", x: 200 });
+    API.setElements([a, b]);
+    API.setSelectedElements([a, b]);
+
+    await openDialog();
+    const columns = queryByTestId(getDialog(), "tidy-grid-direction-columns")!;
+    fireEvent.click(columns);
+    columns.focus();
+    fireEvent.keyDown(columns, { key: KEYS.TAB, shiftKey: true });
+    expect(document.activeElement).toBe(getApplyButton());
   });
 
   it("leaves skipped items in place and disables apply when fewer than two remain", async () => {

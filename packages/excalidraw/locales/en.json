@@ -942,7 +942,7 @@
     "preview": "Preview",
     "count": "{{count}} item(s) will be arranged. Groups and labels move together, and connected arrows follow.",
     "empty": "Select two or more items to tidy them into a grid.",
-    "skipped": "{{count}} selected item(s) will stay in place: frames, and arrows connected to items outside them.",
+    "skipped": "{{count}} selected item(s) will stay in place: frames, locked items, and arrows connected to items outside them.",
     "apply": "Arrange {{count}} item(s)"
   }
 }

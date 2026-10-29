@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { KEYS } from "@excalidraw/common";
+import { KEYS, queryFocusableElements } from "@excalidraw/common";
 import {
   CaptureUpdateAction,
   updateFrameMembershipOfSelectedElements,
@@ -26,6 +26,7 @@ import {
 
 import "./TidyGridDialog.scss";
 
+import type { AppState } from "../../types";
 import type { TidyDirection, TidyOptions } from "./tidyGrid";
 
 const TidyGridPreview = ({
@@ -35,6 +36,7 @@ const TidyGridPreview = ({
 }) => {
   const previewRef = useRef<HTMLDivElement | null>(null);
   const { theme } = useUIAppState();
+  const app = useApp();
 
   useLayoutEffect(() => {
     const previewNode = previewRef.current!;
@@ -52,7 +54,7 @@ const TidyGridPreview = ({
           viewBackgroundColor: "#fff",
           exportWithDarkMode: theme === "dark",
         },
-        null,
+        app.files,
         {
           skipInliningFonts: true,
         },
@@ -67,6 +69,7 @@ const TidyGridPreview = ({
     return () => {
       canceled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elements, theme]);
 
   return (
@@ -80,25 +83,29 @@ const TidyGridPreview = ({
 
 const DIRECTIONS: readonly TidyDirection[] = ["rows", "columns"];
 
+const readTidyUnits = (
+  app: ReturnType<typeof useApp>,
+  selectedElementIds: AppState["selectedElementIds"],
+) =>
+  getTidyUnits(
+    app.scene.getSelectedElements({ selectedElementIds }),
+    app.scene.getNonDeletedElementsMap(),
+    app.state,
+  );
+
 export const TidyGridDialog = ({ onClose }: { onClose: () => void }) => {
   const app = useApp();
   const { selectedElementIds } = useUIAppState();
   const { id } = useExcalidrawContainer();
   const statusId = `${id}-tidy-grid-status`;
 
-  // the selection is read once: the dialog is modal, so it cannot change
-  // underneath it
+  // the scene can still be updated while the dialog is open (by the host or
+  // a collaborator), so the units follow the latest scene
+  const sceneNonce = app.scene.getSceneNonce();
   const { units, skippedCount } = useMemo(
-    () =>
-      getTidyUnits(
-        app.scene.getSelectedElements({
-          selectedElementIds,
-        }),
-        app.scene.getNonDeletedElementsMap(),
-        app.state,
-      ),
+    () => readTidyUnits(app, selectedElementIds),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [sceneNonce, selectedElementIds],
   );
 
   const [direction, setDirection] = useState<TidyDirection>("rows");
@@ -136,6 +143,24 @@ export const TidyGridDialog = ({ onClose }: { onClose: () => void }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [units, canApply, options.direction, options.perLine, options.gap]);
 
+  // the Dialog's focus trap wraps Shift+Tab only from its first focusable
+  // element, the Rows radio, but the radio group's tab stop is the checked
+  // radio, so Shift+Tab from Columns is wrapped here
+  const wrapBackwardTab = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== KEYS.TAB || !event.shiftKey) {
+      return;
+    }
+    const island = event.currentTarget.closest<HTMLElement>(".Island");
+    const focusable = queryFocusableElements(island);
+    if (
+      focusable.find((element) => element.getAttribute("type") === "radio") ===
+      focusable[0]
+    ) {
+      event.preventDefault();
+      focusable[focusable.length - 1].focus();
+    }
+  };
+
   // the editor listens for keys on the document (or its container), so keys
   // pressed inside the portaled dialog would otherwise reach it too: typing a
   // number would switch tools, and Enter on a focused button would start
@@ -153,14 +178,16 @@ export const TidyGridDialog = ({ onClose }: { onClose: () => void }) => {
   };
 
   const applyLayout = () => {
-    if (!canApply) {
+    // units and layout are read again from the latest scene, so geometry
+    // and membership always match the elements being moved
+    const latest = readTidyUnits(app, app.state.selectedElementIds);
+    if (latest.units.length < 2) {
       return;
     }
-    // laid out again on the latest scene so nothing previewed is reused
     const { elements } = applyTidyLayout(
       app.scene.getElementsIncludingDeleted(),
-      units,
-      options,
+      latest.units,
+      clampTidyOptions(options, latest.units.length),
     );
     app.syncActionResult({
       // items moved into or out of a frame join or leave it, as with align
@@ -172,7 +199,7 @@ export const TidyGridDialog = ({ onClose }: { onClose: () => void }) => {
       ),
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     });
-    trackEvent("tidyGrid", "apply", options.direction, units.length);
+    trackEvent("tidyGrid", "apply", options.direction, latest.units.length);
     closeDialog();
   };
 
@@ -207,6 +234,7 @@ export const TidyGridDialog = ({ onClose }: { onClose: () => void }) => {
                     checked={direction === item}
                     data-testid={`tidy-grid-direction-${item}`}
                     onChange={() => setDirection(item)}
+                    onKeyDown={wrapBackwardTab}
                   />
                   {t(`tidyGrid.directions.${item}`)}
                 </label>

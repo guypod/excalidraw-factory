@@ -36,13 +36,14 @@ export type TidyUnit = {
 };
 
 /**
- * Frames move their children with them, and an arrow bound to something
- * outside its own unit is placed by its bindings, so neither is laid out.
+ * Frames move their children with them, an arrow bound to something outside
+ * its own unit is placed by its bindings, and locked elements must not move,
+ * so none of them is laid out.
  */
 const isTidyable = (unit: readonly ExcalidrawElement[]) => {
   const ids = new Set(unit.map((element) => element.id));
   return unit.every((element) => {
-    if (isFrameLikeElement(element)) {
+    if (element.locked || isFrameLikeElement(element)) {
       return false;
     }
     if (isArrowElement(element)) {
@@ -165,8 +166,31 @@ export const applyTidyLayout = <T extends ExcalidrawElement>(
   options: TidyOptions,
 ): { elements: T[]; changedIds: Set<string> } => {
   const translations = getTidyTranslations(units, options);
+  // only the units, the arrows bound to them and those arrows' labels can
+  // change, so only they are deep-copied. Everything else gets a shallow
+  // copy, which keeps the inputs safe from the scene's index repair without
+  // copying the points of unrelated drawings on every preview.
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  const touchedIds = new Set<string>();
+  const addWithBound = (id: string, depth: number) => {
+    touchedIds.add(id);
+    if (depth) {
+      for (const bound of byId.get(id)?.boundElements ?? []) {
+        addWithBound(bound.id, depth - 1);
+      }
+    }
+  };
+  for (const unit of units) {
+    for (const element of unit.elements) {
+      addWithBound(element.id, 2);
+    }
+  }
   const scene = new Scene(
-    elements.map((element) => deepCopyElement<ExcalidrawElement>(element)),
+    elements.map((element) =>
+      touchedIds.has(element.id)
+        ? deepCopyElement<ExcalidrawElement>(element)
+        : { ...element },
+    ),
     { skipValidation: true },
   );
   // the scene may bump versions while repairing indices, so changes are
@@ -184,14 +208,16 @@ export const applyTidyLayout = <T extends ExcalidrawElement>(
     }
     const copies = unit.elements
       .map((element) => scene.getElement(element.id))
-      .filter((element): element is ExcalidrawElement => !!element);
+      // deleted elements are left as they are
+      .filter(
+        (element): element is ExcalidrawElement =>
+          !!element && !element.isDeleted,
+      );
     for (const copy of copies) {
       scene.mutateElement(copy, { x: copy.x + x, y: copy.y + y });
     }
     for (const copy of copies) {
-      if (!copy.isDeleted) {
-        updateBoundElements(copy, scene, { simultaneouslyUpdated: copies });
-      }
+      updateBoundElements(copy, scene, { simultaneouslyUpdated: copies });
     }
   });
 
