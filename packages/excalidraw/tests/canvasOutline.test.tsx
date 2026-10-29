@@ -193,6 +193,33 @@ describe("<CanvasOutline/>", () => {
     await waitFor(() => expect(document.activeElement).toBe(getItems()[0]));
   });
 
+  it("keeps focus in the outline when entries return to a focused empty state", async () => {
+    const freeText = API.createElement({
+      type: "text",
+      x: 0,
+      y: 0,
+      text: "Only entry",
+    });
+    API.setElements([freeText]);
+    await openOutline();
+
+    act(() => getItems()[0].focus());
+    act(() => {
+      API.updateElement(freeText, { isDeleted: true });
+    });
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        document.querySelector(".CanvasOutline__empty"),
+      ),
+    );
+
+    act(() => {
+      API.updateElement(freeText, { isDeleted: false });
+    });
+    await waitFor(() => expect(getItems()).toHaveLength(1));
+    await waitFor(() => expect(document.activeElement).toBe(getItems()[0]));
+  });
+
   it("updates after edits, deletion, undo and redo", async () => {
     const { frame, freeText } = createScene();
     await openOutline();

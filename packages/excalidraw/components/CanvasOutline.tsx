@@ -179,6 +179,9 @@ export const CanvasOutline = () => {
   const emptyRef = useRef<HTMLDivElement>(null);
   // the item holding DOM focus, so focus can follow when it is removed
   const focusedIdRef = useRef<string | null>(null);
+  // whether the empty state holds DOM focus, so focus can return to the list
+  // when entries come back
+  const emptyFocusedRef = useRef(false);
 
   // keep the roving tab stop on an item that still exists
   const activeIndex = Math.max(
@@ -206,6 +209,22 @@ export const CanvasOutline = () => {
       }
     }
   }, [items, activeId]);
+
+  useEffect(() => {
+    if (items.length && emptyFocusedRef.current) {
+      emptyFocusedRef.current = false;
+      if (!document.activeElement || document.activeElement === document.body) {
+        const nextId = items[0].id;
+        focusedIdRef.current = nextId;
+        setActiveId(nextId);
+        listRef.current
+          ?.querySelector<HTMLElement>(
+            `[data-outline-id="${CSS.escape(nextId)}"]`,
+          )
+          ?.focus();
+      }
+    }
+  }, [items]);
 
   const focusItem = (index: number) => {
     const item = items[index];
@@ -250,6 +269,15 @@ export const CanvasOutline = () => {
           className="CanvasOutline__empty"
           role="status"
           tabIndex={-1}
+          onFocus={() => {
+            emptyFocusedRef.current = true;
+          }}
+          onBlur={(event) => {
+            // the empty state is disconnected when entries replace it
+            if (event.currentTarget.isConnected) {
+              emptyFocusedRef.current = false;
+            }
+          }}
         >
           <p className="CanvasOutline__empty-title">
             {t("canvasOutline.emptyTitle")}
