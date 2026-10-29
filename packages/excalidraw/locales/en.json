@@ -768,5 +768,41 @@
       "story": "User story",
       "release": "Release 1"
     }
+  },
+  "boardShelf": {
+    "menuItem": "Local boards",
+    "title": "Local boards",
+    "localOnly": "Boards are saved only in this browser. They are not synced, shared or backed up. Use \"Save to...\" to keep a copy as a file.",
+    "currentBoard": "Current board: {{name}}",
+    "noCurrentBoard": "The canvas is not saved to a board yet.",
+    "save": "Save",
+    "saveAsNew": "Save as new board",
+    "newBoardName": "New board name",
+    "defaultName": "Untitled board",
+    "savedBoards": "Saved boards",
+    "empty": "No boards saved in this browser yet.",
+    "updated": "Saved {{date}}",
+    "open": "Open",
+    "rename": "Rename",
+    "renameLabel": "New name for {{name}}",
+    "delete": "Delete",
+    "unreadable": "Unreadable board data",
+    "unreadableHint": "This entry could not be read. It is kept until you delete it.",
+    "openDisabledWhileCollaborating": "Stop the live collaboration session to open a saved board.",
+    "confirm": {
+      "openTitle": "Open \"{{name}}\"?",
+      "openDescription": "The canvas has changes that are not saved to a board. Opening \"{{name}}\" replaces them.",
+      "openButton": "Replace canvas",
+      "deleteTitle": "Delete \"{{name}}\"?",
+      "deleteDescription": "This removes the board from this browser. It cannot be recovered.",
+      "deleteButton": "Delete board"
+    },
+    "status": {
+      "saved": "Saved \"{{name}}\" in this browser.",
+      "renamed": "Renamed to \"{{name}}\".",
+      "deleted": "Deleted \"{{name}}\".",
+      "opened": "Opened \"{{name}}\".",
+      "missingImages": "{{count}} image(s) were not loaded on the canvas and were not saved with the board."
+    }
   }
 }

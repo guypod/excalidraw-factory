@@ -1,0 +1,111 @@
+@import "../../packages/excalidraw/css/variables.module.scss";
+
+.excalidraw {
+  .BoardShelfDialog {
+    p {
+      margin: 0 0 0.75rem;
+      color: var(--text-primary-color);
+    }
+
+    .BoardShelf__localOnly {
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      background: var(--color-primary-light);
+    }
+
+    .BoardShelf__current {
+      margin-bottom: 0.5rem;
+    }
+
+    .BoardShelf__saveRow,
+    .BoardShelf__renameForm {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 0.5rem;
+
+      .ExcTextField {
+        flex: 1 1 200px;
+      }
+    }
+
+    .BoardShelf__actions,
+    .BoardShelf__itemActions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+
+    .BoardShelf__status {
+      min-height: 1.5rem;
+      margin: 0.5rem 0;
+
+      &--error {
+        color: var(--color-danger);
+        font-weight: 600;
+      }
+    }
+
+    .BoardShelf__confirm {
+      margin-bottom: 1rem;
+      padding: 0.75rem;
+      border: 1px solid var(--color-danger);
+      border-radius: 8px;
+    }
+
+    .BoardShelf__confirmTitle,
+    .BoardShelf__listTitle {
+      margin: 0 0 0.5rem;
+      font-size: 1rem;
+    }
+
+    .BoardShelf__hint {
+      color: var(--color-gray-60);
+    }
+
+    .BoardShelf__list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .BoardShelf__item {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--dialog-border-color);
+      border-radius: 8px;
+
+      &--unreadable {
+        border-style: dashed;
+      }
+    }
+
+    .BoardShelf__renameForm {
+      flex: 1;
+    }
+
+    .BoardShelf__itemText {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .BoardShelf__itemName {
+      font-weight: 600;
+      overflow-wrap: anywhere;
+    }
+
+    .BoardShelf__itemMeta {
+      font-size: 0.75rem;
+      color: var(--color-gray-60);
+    }
+  }
+}

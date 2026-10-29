@@ -100,6 +100,7 @@ import Collab, {
 } from "./collab/Collab";
 import { AppFooter } from "./components/AppFooter";
 import { AppMainMenu } from "./components/AppMainMenu";
+import { BoardShelfDialog } from "./components/BoardShelfDialog";
 import { AppWelcomeScreen } from "./components/AppWelcomeScreen";
 import {
   ExportToExcalidrawPlus,
@@ -1055,6 +1056,13 @@ const ExcalidrawWrapper = () => {
             }
           }}
         />
+
+        {excalidrawAPI && (
+          <BoardShelfDialog
+            excalidrawAPI={excalidrawAPI}
+            isCollaborating={isCollaborating}
+          />
+        )}
 
         <AppSidebar />
 
