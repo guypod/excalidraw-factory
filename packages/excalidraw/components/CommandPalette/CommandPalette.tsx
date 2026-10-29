@@ -50,6 +50,7 @@ import {
   outlineIcon,
   presentationIcon,
   timerIcon,
+  bookmarkIcon,
   boltIcon,
   bucketFillIcon,
   ExportImageIcon,
@@ -68,6 +69,7 @@ import { useStableCallback } from "../../hooks/useStableCallback";
 import { activeConfirmDialogAtom } from "../ActiveConfirmDialog";
 import { startFramePresentation } from "../FramePresentation";
 import { openWorkshopTimer } from "../WorkshopTimer/WorkshopTimer";
+import { openViewportBookmarks } from "../ViewportBookmarks/ViewportBookmarks";
 import { useStable } from "../../hooks/useStable";
 
 import { Ellipsify } from "../Ellipsify";
@@ -504,6 +506,16 @@ function CommandPaletteInner({
           viewMode: true,
           perform: () => {
             openWorkshopTimer(app);
+          },
+        },
+        {
+          label: t("viewportBookmarks.title"),
+          keywords: ["bookmark", "camera", "view", "viewport", "jump", "saved"],
+          category: DEFAULT_CATEGORIES.app,
+          icon: bookmarkIcon,
+          viewMode: true,
+          perform: () => {
+            openViewportBookmarks(app);
           },
         },
         {
