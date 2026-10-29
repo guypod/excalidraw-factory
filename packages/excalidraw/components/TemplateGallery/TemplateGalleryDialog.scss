@@ -1,0 +1,103 @@
+@use "../../css/variables.module" as *;
+
+.excalidraw {
+  .TemplateGalleryDialog {
+    .TemplateGallery__description {
+      margin-top: 0;
+      color: var(--text-primary-color);
+    }
+
+    .TemplateGallery__body {
+      display: flex;
+      gap: 1rem;
+
+      @include isMobile {
+        flex-direction: column;
+      }
+    }
+
+    .TemplateGallery__options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      flex: 0 0 260px;
+
+      @include isMobile {
+        flex-basis: auto;
+      }
+    }
+
+    .TemplateGallery__option {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.25rem;
+      padding: 0.75rem;
+      border-radius: 8px;
+      border: 1px solid $color-gray-4;
+      background: transparent;
+      color: var(--text-primary-color);
+      text-align: left;
+      cursor: pointer;
+
+      &:hover {
+        border-color: $color-blue-5;
+      }
+
+      &:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 2px var(--color-primary);
+      }
+
+      &--selected {
+        border-color: var(--color-primary);
+        background: var(--color-primary-light);
+      }
+    }
+
+    .TemplateGallery__optionLabel {
+      font-weight: 600;
+    }
+
+    .TemplateGallery__optionDescription {
+      font-size: 0.875rem;
+      opacity: 0.8;
+    }
+
+    .TemplateGallery__previewPanel {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      border-radius: 8px;
+      border: 1px solid $color-gray-4;
+      padding: 0.75rem;
+    }
+
+    .TemplateGallery__previewTitle {
+      margin: 0 0 0.5rem;
+      font-size: 1rem;
+    }
+
+    .TemplateGallery__preview {
+      flex: 1;
+      min-height: 260px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+
+      svg {
+        max-width: 100%;
+        max-height: 320px;
+      }
+    }
+
+    .TemplateGallery__actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+  }
+}

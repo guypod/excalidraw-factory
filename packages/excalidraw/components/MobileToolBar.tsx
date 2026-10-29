@@ -33,6 +33,7 @@ import {
   laserPointerToolIcon,
   LassoIcon,
   mermaidLogoIcon,
+  templateIcon,
   MagicIcon,
 } from "./icons";
 
@@ -465,6 +466,13 @@ export const MobileToolBar = ({
             data-testid="toolbar-embeddable"
           >
             {t("toolBar.mermaidToExcalidraw")}
+          </DropdownMenu.Item>
+          <DropdownMenu.Item
+            onSelect={() => app.setOpenDialog({ name: "templateGallery" })}
+            icon={templateIcon}
+            data-testid="toolbar-template-gallery"
+          >
+            {t("toolBar.templateGallery")}
           </DropdownMenu.Item>
           {app.props.aiEnabled !== false && app.plugins.diagramToCode && (
             <>
