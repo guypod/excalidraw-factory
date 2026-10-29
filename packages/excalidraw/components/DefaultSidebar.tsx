@@ -1,6 +1,7 @@
 import clsx from "clsx";
 
 import {
+  CANVAS_OUTLINE_TAB,
   CANVAS_SEARCH_TAB,
   DEFAULT_SIDEBAR,
   LIBRARY_SIDEBAR_TAB,
@@ -10,16 +11,18 @@ import {
 import type { MarkOptional, Merge } from "@excalidraw/common/utility-types";
 
 import { useTunnels } from "../context/tunnels";
+import { t } from "../i18n";
 import { useUIAppState } from "../context/ui-appState";
 
 import "../components/dropdownMenu/DropdownMenu.scss";
 
 import { useExcalidrawSetAppState } from "./App";
+import { CanvasOutline } from "./CanvasOutline";
 import { LibraryMenu } from "./LibraryMenu";
 import { SearchMenu } from "./SearchMenu";
 import { Sidebar } from "./Sidebar/Sidebar";
 import { withInternalFallback } from "./hoc/withInternalFallback";
-import { LibraryIcon, searchIcon } from "./icons";
+import { LibraryIcon, outlineIcon, searchIcon } from "./icons";
 
 import type { SidebarProps, SidebarTriggerProps } from "./Sidebar/common";
 
@@ -102,6 +105,14 @@ export const DefaultSidebar = Object.assign(
                 <Sidebar.TabTrigger tab={CANVAS_SEARCH_TAB}>
                   {searchIcon}
                 </Sidebar.TabTrigger>
+                <Sidebar.TabTrigger
+                  tab={CANVAS_OUTLINE_TAB}
+                  title={t("canvasOutline.title")}
+                  aria-label={t("canvasOutline.title")}
+                  data-testid="canvas-outline-tab"
+                >
+                  {outlineIcon}
+                </Sidebar.TabTrigger>
                 <Sidebar.TabTrigger tab={LIBRARY_SIDEBAR_TAB}>
                   {LibraryIcon}
                 </Sidebar.TabTrigger>
@@ -113,6 +124,9 @@ export const DefaultSidebar = Object.assign(
             </Sidebar.Tab>
             <Sidebar.Tab tab={CANVAS_SEARCH_TAB}>
               <SearchMenu />
+            </Sidebar.Tab>
+            <Sidebar.Tab tab={CANVAS_OUTLINE_TAB}>
+              <CanvasOutline />
             </Sidebar.Tab>
             {children}
           </Sidebar.Tabs>

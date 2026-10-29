@@ -1,0 +1,89 @@
+@use "../css/variables.module" as *;
+
+.excalidraw {
+  .CanvasOutline {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: 8px 0 0 0;
+  }
+
+  .CanvasOutline__hint {
+    margin: 0 0.75rem 0.5rem;
+    font-size: 0.8em;
+    color: var(--color-gray-60);
+
+    @at-root .excalidraw.theme--dark#{&} {
+      color: var(--color-gray-40);
+    }
+  }
+
+  .CanvasOutline__list {
+    overflow-y: auto;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0 0.75rem 0.75rem;
+  }
+
+  .CanvasOutline__heading {
+    font-size: 0.875rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+
+  .CanvasOutline__item {
+    display: flex;
+    align-items: center;
+    min-height: 1.875rem;
+    padding: 0.25rem 0.75rem;
+    cursor: pointer;
+    border: 1px solid transparent;
+    border-radius: var(--border-radius-md);
+    font-size: 0.875rem;
+
+    &:hover {
+      background-color: var(--color-surface-high);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: -2px;
+    }
+
+    &--selected {
+      background-color: var(--color-surface-high);
+      border-color: var(--color-primary);
+    }
+  }
+
+  .CanvasOutline__icon {
+    display: flex;
+    flex: 0 0 auto;
+    width: 1rem;
+    height: 1rem;
+    margin-right: 0.75rem;
+  }
+
+  .CanvasOutline__label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .CanvasOutline__empty {
+    margin: 0 0.75rem;
+    font-size: 0.875rem;
+
+    p {
+      margin: 0 0 0.5rem;
+    }
+  }
+
+  .CanvasOutline__empty-title {
+    font-weight: 700;
+  }
+}

@@ -216,6 +216,16 @@
     "frames": "Frames",
     "texts": "Texts"
   },
+  "canvasOutline": {
+    "title": "Canvas outline",
+    "hint": "Frames and labelled elements on this canvas. Use the arrow keys to move, Enter to select and zoom.",
+    "frames": "Frames",
+    "labels": "Labelled elements",
+    "frame": "Frame",
+    "labelled": "Labelled element",
+    "emptyTitle": "Nothing to outline yet",
+    "emptyHint": "Add a frame or some text, or put a label on a shape, and it will show up here."
+  },
   "buttons": {
     "clearReset": "Reset the canvas",
     "exportJSON": "Export to file",
