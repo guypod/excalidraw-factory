@@ -53,6 +53,7 @@ import {
   ExportImageIcon,
   mermaidLogoIcon,
   templateIcon,
+  stickyNotesIcon,
   brainIconThin,
   LibraryIcon,
   historyCommandIcon,
@@ -643,6 +644,20 @@ function CommandPaletteInner({
               ...state,
               openDialog: {
                 name: "templateGallery",
+              },
+            }));
+          },
+        },
+        {
+          label: `${t("toolBar.stickyBurst")}...`,
+          category: DEFAULT_CATEGORIES.tools,
+          icon: stickyNotesIcon,
+          viewMode: false,
+          perform: () => {
+            setAppState((state) => ({
+              ...state,
+              openDialog: {
+                name: "stickyBurst",
               },
             }));
           },
