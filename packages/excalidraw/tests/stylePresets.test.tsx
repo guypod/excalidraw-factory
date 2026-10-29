@@ -297,6 +297,42 @@ describe("<StylePresetsDialog/>", () => {
     expect(API.getUndoStack().length).toBe(undoStackSize);
   });
 
+  it("moves the preset selection with arrow keys like a radio group", async () => {
+    const rect = API.createElement({ type: "rectangle" });
+    API.setElements([rect]);
+    API.setSelectedElements([rect]);
+
+    await openDialog();
+    const option = (index: number) =>
+      queryByTestId(getDialog(), `style-preset-${STYLE_PRESETS[index].id}`)!;
+    const last = STYLE_PRESETS.length - 1;
+    const expectChecked = (index: number) => {
+      STYLE_PRESETS.forEach((_, i) => {
+        expect(option(i).getAttribute("aria-checked")).toBe(
+          String(i === index),
+        );
+        expect(option(i).tabIndex).toBe(i === index ? 0 : -1);
+      });
+      expect(document.activeElement).toBe(option(index));
+    };
+
+    option(0).focus();
+    fireEvent.keyDown(option(0), { key: KEYS.ARROW_DOWN });
+    expectChecked(1);
+    fireEvent.keyDown(option(1), { key: KEYS.ARROW_LEFT });
+    expectChecked(0);
+    fireEvent.keyDown(option(0), { key: KEYS.ARROW_UP });
+    expectChecked(last);
+    fireEvent.keyDown(option(last), { key: KEYS.ARROW_RIGHT });
+    expectChecked(0);
+    fireEvent.keyDown(option(0), { key: "End" });
+    expectChecked(last);
+    fireEvent.keyDown(option(last), { key: "Home" });
+    expectChecked(0);
+
+    expect(getById(rect.id)).toBe(rect);
+  });
+
   it("disables apply and explains why when nothing compatible is selected", async () => {
     const arrow = API.createElement({ type: "arrow" });
     API.setElements([arrow]);

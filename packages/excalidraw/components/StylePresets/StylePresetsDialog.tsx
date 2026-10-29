@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { KEYS } from "@excalidraw/common";
 import { CaptureUpdateAction } from "@excalidraw/element";
 
 import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
@@ -110,6 +111,40 @@ export const StylePresetsDialog = ({ onClose }: { onClose: () => void }) => {
     [previewSource, targetIds, preset],
   );
 
+  // radio group keyboard behavior: arrows move the selection and focus
+  // together, wrapping at the ends, and only the checked option is tabbable
+  const onPresetKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const index = STYLE_PRESETS.findIndex((item) => item.id === preset.id);
+    let nextIndex: number;
+    switch (event.key) {
+      case KEYS.ARROW_DOWN:
+      case KEYS.ARROW_RIGHT:
+        nextIndex = (index + 1) % STYLE_PRESETS.length;
+        break;
+      case KEYS.ARROW_UP:
+      case KEYS.ARROW_LEFT:
+        nextIndex = (index - 1 + STYLE_PRESETS.length) % STYLE_PRESETS.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = STYLE_PRESETS.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const next = STYLE_PRESETS[nextIndex];
+    setPreset(next);
+    event.currentTarget
+      .querySelector<HTMLButtonElement>(
+        `[data-testid="style-preset-${next.id}"]`,
+      )
+      ?.focus();
+  };
+
   const closeDialog = () => {
     onClose();
     // return focus to the editor rather than leaving it on the document body
@@ -153,6 +188,7 @@ export const StylePresetsDialog = ({ onClose }: { onClose: () => void }) => {
             aria-label={t("stylePresets.choose")}
             aria-describedby={statusId}
             className="StylePresets__list"
+            onKeyDown={onPresetKeyDown}
           >
             {STYLE_PRESETS.map((item) => {
               const checked = item.id === preset.id;
@@ -162,6 +198,7 @@ export const StylePresetsDialog = ({ onClose }: { onClose: () => void }) => {
                   type="button"
                   role="radio"
                   aria-checked={checked}
+                  tabIndex={checked ? 0 : -1}
                   className="StylePresets__option"
                   data-testid={`style-preset-${item.id}`}
                   disabled={!targetIds.size}
