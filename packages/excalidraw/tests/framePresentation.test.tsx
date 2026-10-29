@@ -300,6 +300,15 @@ describe("<FramePresentation/>", () => {
         true,
       );
     }
+    // on a German layout `+` and `-` are on other physical keys
+    for (const [key, code] of [
+      ["+", "BracketRight"],
+      ["-", "Slash"],
+    ]) {
+      expect(fireEvent.keyDown(dialog, { key, code, ctrlKey: true })).toBe(
+        true,
+      );
+    }
     // without a modifier, the same keys still never reach the editor
     expect(fireEvent.keyDown(dialog, { key: "-", code: CODES.MINUS })).toBe(
       false,
@@ -332,6 +341,24 @@ describe("<FramePresentation/>", () => {
     Keyboard.keyPress(KEYS.R);
     expect(h.state.activeTool.type).toBe("rectangle");
     expect([h.state.scrollX, h.state.scrollY]).toEqual([30, 40]);
+  });
+
+  it("shows this editor's UI again when another editor takes over", async () => {
+    createScene();
+    await start();
+    const container = document.querySelector(".excalidraw-container")!;
+    expect(container.classList.contains("excalidraw--presenting")).toBe(true);
+
+    // another editor starts presenting; nothing renders this editor
+    act(() =>
+      editorJotaiStore.set(framePresentationAtom, {
+        editorId: "another-editor",
+        savedViewport: { scrollX: 0, scrollY: 0, zoom: { value: 1 as any } },
+      }),
+    );
+
+    expect(document.querySelector(".FramePresentation")).toBeNull();
+    expect(container.classList.contains("excalidraw--presenting")).toBe(false);
   });
 
   it("ends the presentation when its editor unmounts", async () => {

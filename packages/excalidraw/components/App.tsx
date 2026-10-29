@@ -441,6 +441,7 @@ import ConvertElementTypePopup, {
 import {
   endFramePresentationForEditor,
   isPresentingFrames,
+  subscribeToFramePresentation,
 } from "./FramePresentation";
 
 import { activeConfirmDialogAtom } from "./ActiveConfirmDialog";
@@ -3292,6 +3293,9 @@ class App extends React.Component<AppProps, AppState> {
         { passive: false },
       ),
       addEventListener(window, EVENT.MESSAGE, this.onWindowMessage, false),
+      // the presentation session is shared by every editor, so keep the
+      // `excalidraw--presenting` class in step when another editor takes it
+      subscribeToFramePresentation(this.id, () => this.triggerRender()),
       addEventListener(document, EVENT.POINTER_UP, this.removePointer, {
         passive: false,
       }), // #3553

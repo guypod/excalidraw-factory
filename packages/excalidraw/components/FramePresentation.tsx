@@ -37,6 +37,23 @@ export const framePresentationAtom = atom<{
 export const isPresentingFrames = (editorId: AppClassProperties["id"]) =>
   editorJotaiStore.get(framePresentationAtom)?.editorId === editorId;
 
+/**
+ * Calls `onChange` when the editor starts or stops presenting, including when
+ * another editor takes the session over, which does not render this editor.
+ */
+export const subscribeToFramePresentation = (
+  editorId: AppClassProperties["id"],
+  onChange: () => void,
+) => {
+  let presenting = isPresentingFrames(editorId);
+  return editorJotaiStore.sub(framePresentationAtom, () => {
+    if (isPresentingFrames(editorId) !== presenting) {
+      presenting = !presenting;
+      onChange();
+    }
+  });
+};
+
 export type PresentationSlide = {
   id: ExcalidrawFrameLikeElement["id"];
   title: string;
@@ -83,7 +100,12 @@ const PREVIOUS_KEYS: readonly string[] = [
   KEYS.ARROW_UP,
   KEYS.PAGE_UP,
 ];
-/** browser zoom shortcuts, left to the browser while presenting */
+/**
+ * browser zoom shortcuts, left to the browser while presenting. Matched on
+ * the character as well as the physical key, since on many layouts `+` and
+ * `-` are on other keys (e.g. German `BracketRight` and `Slash`)
+ */
+const BROWSER_ZOOM_KEYS: readonly string[] = ["+", "=", "-", "0"];
 const BROWSER_ZOOM_CODES: readonly string[] = [
   CODES.EQUAL,
   CODES.MINUS,
@@ -207,7 +229,8 @@ const FramePresentationInner = ({ onExit }: { onExit: () => void }) => {
       event.stopPropagation();
       const isBrowserZoom =
         (event.ctrlKey || event.metaKey) &&
-        BROWSER_ZOOM_CODES.includes(event.code);
+        (BROWSER_ZOOM_KEYS.includes(event.key) ||
+          BROWSER_ZOOM_CODES.includes(event.code));
       if (event.key !== KEYS.TAB && !onButton && !isBrowserZoom) {
         event.preventDefault();
       }
