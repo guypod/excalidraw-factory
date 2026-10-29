@@ -101,11 +101,12 @@ const BoardShelfDialogInner = ({
 
   const setActiveBoard = useCallback(
     (board: ActiveBoard | null) => {
-      setActiveBoardState(board);
       LocalData.saveActiveBoard(
         excalidrawAPI.getSceneElementsIncludingDeleted(),
         excalidrawAPI.getAppState(),
+        board,
       );
+      setActiveBoardState(board);
     },
     [excalidrawAPI, setActiveBoardState],
   );

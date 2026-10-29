@@ -47,6 +47,8 @@ import { FileStatusStore } from "./fileStatusStore";
 import { Locker } from "./Locker";
 import { updateBrowserStateVersion } from "./tabSync";
 
+import type { ActiveBoard } from "./boardShelf";
+
 const filesStore = createStore("files-db", "files-store");
 
 export const localStorageQuotaExceededAtom = atom(false);
@@ -74,6 +76,7 @@ class LocalFileManager extends FileManager {
 const saveDataStateToLocalStorage = (
   elements: readonly ExcalidrawElement[],
   appState: AppState,
+  activeBoard: ActiveBoard | null,
 ) => {
   const localStorageQuotaExceeded = appJotaiStore.get(
     localStorageQuotaExceededAtom,
@@ -101,7 +104,7 @@ const saveDataStateToLocalStorage = (
     );
     // stored with the scene, and before the version bump, so a tab that
     // imports this scene also gets the board it belongs to
-    saveActiveBoard(appJotaiStore.get(activeBoardAtom));
+    saveActiveBoard(activeBoard);
     updateBrowserStateVersion(STORAGE_KEYS.VERSION_DATA_STATE);
     if (localStorageQuotaExceeded) {
       appJotaiStore.set(localStorageQuotaExceededAtom, false);
@@ -126,10 +129,11 @@ export class LocalData {
     async (
       elements: readonly ExcalidrawElement[],
       appState: AppState,
+      activeBoard: ActiveBoard | null,
       files: BinaryFiles,
       onFilesSaved: () => void,
     ) => {
-      saveDataStateToLocalStorage(elements, appState);
+      saveDataStateToLocalStorage(elements, appState, activeBoard);
 
       await this.fileStorage.saveFiles({
         elements,
@@ -149,7 +153,15 @@ export class LocalData {
   ) => {
     // we need to make the `isSavePaused` check synchronously (undebounced)
     if (!this.isSavePaused()) {
-      this._save(elements, appState, files, onFilesSaved);
+      // taken now, so a queued save keeps the board its scene belongs to even
+      // if the active board changes before the save runs
+      this._save(
+        elements,
+        appState,
+        appJotaiStore.get(activeBoardAtom),
+        files,
+        onFilesSaved,
+      );
     }
   };
 
@@ -158,19 +170,21 @@ export class LocalData {
   };
 
   /**
-   * Call after `activeBoardAtom` changes. Writes the scene now, together with
-   * the new active board, so other tabs never import a board identity with a
-   * scene it doesn't belong to. Bails if saving is paused, which leaves the
-   * stored scene and board as they were.
+   * Call when the active board changes. Writes the scene now, together with
+   * `activeBoard`, so other tabs never import a board identity with a scene it
+   * doesn't belong to. Bails if saving is paused, which leaves the stored
+   * scene and board as they were.
    */
   static saveActiveBoard = (
     elements: readonly ExcalidrawElement[],
     appState: AppState,
+    activeBoard: ActiveBoard | null,
   ) => {
     if (!this.isSavePaused()) {
-      // pending files are saved through the regular debounced save
+      // a pending save is written with the board it was queued with. Its
+      // files are saved there too
       this._save.flush();
-      saveDataStateToLocalStorage(elements, appState);
+      saveDataStateToLocalStorage(elements, appState, activeBoard);
     }
   };
 

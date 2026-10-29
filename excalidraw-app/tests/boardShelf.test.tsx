@@ -552,6 +552,148 @@ describe("BoardShelfDialog", () => {
     ).toBe("First");
   });
 
+  it("writes a queued save with the board it was queued with", async () => {
+    const first = API.createElement({ type: "rectangle", id: "first" });
+    setScene([first]);
+    await openShelf();
+    await saveAsNew("First");
+    const firstBoard = appJotaiStore.get(activeBoardAtom);
+    setScene([API.createElement({ type: "ellipse", id: "second" })]);
+    await saveAsNew("Second");
+    const secondBoard = appJotaiStore.get(activeBoardAtom);
+
+    const writes: { elements: string[]; board: string | null }[] = [];
+    const setItem = localStorage.setItem.bind(localStorage);
+    const setItemSpy = vi
+      .spyOn(localStorage, "setItem")
+      .mockImplementation((key, value) => {
+        if (key === STORAGE_KEYS.VERSION_DATA_STATE) {
+          writes.push({
+            elements: JSON.parse(
+              localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS)!,
+            ).map((el: { id: string }) => el.id),
+            board: localStorage.getItem(
+              STORAGE_KEYS.LOCAL_STORAGE_ACTIVE_BOARD,
+            ),
+          });
+        }
+        return setItem(key, value);
+      });
+    try {
+      // a scene edit queues a debounced save of "Second", then "First" is
+      // opened before it runs
+      setScene([
+        API.createElement({ type: "ellipse", id: "second" }),
+        API.createElement({ type: "diamond", id: "edit" }),
+      ]);
+      await clickInItem("First", "board-shelf-open");
+      await waitFor(() =>
+        expect(byTestId("board-shelf-confirm")).not.toBeNull(),
+      );
+      fireEvent.click(byTestId("board-shelf-confirm-action")!);
+      await waitFor(() =>
+        expect(h.elements.map((el) => el.id)).toEqual(["first"]),
+      );
+    } finally {
+      setItemSpy.mockRestore();
+    }
+    expect(firstBoard).not.toEqual(secondBoard);
+    for (const write of writes) {
+      const board = JSON.parse(write.board!);
+      expect(board.id).toBe(
+        write.elements.includes("first") ? firstBoard!.id : secondBoard!.id,
+      );
+    }
+    expect(writes.some((write) => write.elements.includes("edit"))).toBe(true);
+  });
+
+  it.each([
+    ["the active board", STORAGE_KEYS.LOCAL_STORAGE_ACTIVE_BOARD],
+    ["the new scene", STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS],
+  ])(
+    "keeps every stored scene with its own board when writing %s fails after a queued save",
+    async (_, failingKey) => {
+      setScene([API.createElement({ type: "rectangle", id: "first" })]);
+      await openShelf();
+      await saveAsNew("First");
+      const firstBoard = appJotaiStore.get(activeBoardAtom)!;
+      setScene([API.createElement({ type: "ellipse", id: "second" })]);
+      await saveAsNew("Second");
+      const secondBoard = appJotaiStore.get(activeBoardAtom)!;
+
+      // every scene/board pair another tab could import, at each write
+      const pairs: { elements: string[]; board: string | null }[] = [];
+      const recordPair = () =>
+        pairs.push({
+          elements: JSON.parse(
+            localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_ELEMENTS)!,
+          ).map((el: { id: string }) => el.id),
+          board: localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_ACTIVE_BOARD),
+        });
+      // only the write for the opened board fails. The queued save of the
+      // previous scene, flushed by the open, goes through
+      const setItem = localStorage.setItem.bind(localStorage);
+      const removeItem = localStorage.removeItem.bind(localStorage);
+      const setItemSpy = vi
+        .spyOn(localStorage, "setItem")
+        .mockImplementation((key, value) => {
+          if (
+            key === failingKey &&
+            (value.includes(`"${firstBoard.id}"`) || value.includes('"first"'))
+          ) {
+            throw new DOMException("full", "QuotaExceededError");
+          }
+          setItem(key, value);
+          recordPair();
+        });
+      const removeItemSpy = vi
+        .spyOn(localStorage, "removeItem")
+        .mockImplementation((key) => {
+          removeItem(key);
+          recordPair();
+        });
+      try {
+        // queues a debounced save of the "Second" scene
+        setScene([
+          API.createElement({ type: "ellipse", id: "second" }),
+          API.createElement({ type: "diamond", id: "edit" }),
+        ]);
+        await clickInItem("First", "board-shelf-open");
+        await waitFor(() =>
+          expect(byTestId("board-shelf-confirm")).not.toBeNull(),
+        );
+        fireEvent.click(byTestId("board-shelf-confirm-action")!);
+        await waitFor(() =>
+          expect(h.elements.map((el) => el.id)).toEqual(["first"]),
+        );
+      } finally {
+        setItemSpy.mockRestore();
+        removeItemSpy.mockRestore();
+      }
+
+      expect(
+        pairs.some(
+          (pair) => pair.elements.includes("edit") && pair.board !== null,
+        ),
+      ).toBe(true);
+      for (const pair of pairs) {
+        if (pair.board === null) {
+          continue;
+        }
+        const { id } = JSON.parse(pair.board);
+        if (pair.elements.includes("first")) {
+          expect(id).toBe(firstBoard.id);
+        } else if (pair.elements.includes("second")) {
+          expect(id).toBe(secondBoard.id);
+        }
+      }
+      // the failed write leaves no board behind for the scene in storage
+      expect(
+        localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_ACTIVE_BOARD),
+      ).toBeNull();
+    },
+  );
+
   it("does not leave another board stored when the scene write fails", async () => {
     setScene([API.createElement({ type: "rectangle", id: "first" })]);
     await openShelf();
