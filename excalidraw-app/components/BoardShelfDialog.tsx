@@ -94,8 +94,8 @@ const BoardShelfDialogInner = ({
   } | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm>(null);
   const [status, setStatus] = useState<Status>(null);
-  const [isBusy, setIsBusy] = useState(false);
   const confirmRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   const setActiveBoard = useCallback(
     (board: ActiveBoard | null) => {
@@ -124,8 +124,12 @@ const BoardShelfDialogInner = ({
       confirmRef.current
         ?.querySelector<HTMLButtonElement>("[data-confirm-cancel]")
         ?.focus();
+    } else if (!rootRef.current?.contains(document.activeElement)) {
+      // the focused control was removed (confirm, rename form or a deleted
+      // board). Keep focus in the dialog so Escape and Tab keep working
+      rootRef.current?.focus();
     }
-  }, [pendingConfirm]);
+  }, [pendingConfirm, renaming, boards]);
 
   // guards async work so the dialog never runs two storage writes at once
   const busyRef = useRef(false);
@@ -134,14 +138,12 @@ const BoardShelfDialogInner = ({
       return;
     }
     busyRef.current = true;
-    setIsBusy(true);
     try {
       await task();
     } catch (error) {
       setStatus({ type: "error", message: errorMessage(error) });
     } finally {
       busyRef.current = false;
-      setIsBusy(false);
     }
   };
 
@@ -294,7 +296,6 @@ const BoardShelfDialogInner = ({
           }
           actionType="danger"
           data-testid="board-shelf-confirm-action"
-          disabled={isBusy}
           onClick={() =>
             pendingConfirm.type === "open"
               ? openBoard(pendingConfirm.board)
@@ -312,195 +313,197 @@ const BoardShelfDialogInner = ({
       title={t("boardShelf.title")}
       className="BoardShelfDialog"
     >
-      <p className="BoardShelf__localOnly">{t("boardShelf.localOnly")}</p>
+      <div ref={rootRef} tabIndex={-1} className="BoardShelf__root">
+        <p className="BoardShelf__localOnly">{t("boardShelf.localOnly")}</p>
 
-      <section className="BoardShelf__current">
-        <p data-testid="board-shelf-current">
-          {activeBoard
-            ? t("boardShelf.currentBoard", { name: activeBoard.name })
-            : t("boardShelf.noCurrentBoard")}
-        </p>
-        <div className="BoardShelf__saveRow">
-          {activeBoard && (
-            <DialogActionButton
-              label={t("boardShelf.save")}
-              actionType="primary"
-              data-testid="board-shelf-save"
-              disabled={isBusy}
-              onClick={() => save(false)}
-            />
-          )}
-          <TextField
-            label={t("boardShelf.newBoardName")}
-            placeholder={t("boardShelf.defaultName")}
-            value={newBoardName}
-            onChange={setNewBoardName}
-            onKeyDown={(event) => {
-              if (event.key === KEYS.ENTER) {
-                event.preventDefault();
-                save(true);
-              }
-            }}
-          />
-          <DialogActionButton
-            label={t("boardShelf.saveAsNew")}
-            actionType={activeBoard ? undefined : "primary"}
-            data-testid="board-shelf-save-new"
-            disabled={isBusy}
-            onClick={() => save(true)}
-          />
-        </div>
-      </section>
-
-      <div
-        className={`BoardShelf__status BoardShelf__status--${
-          status?.type ?? "info"
-        }`}
-        role={status?.type === "error" ? "alert" : "status"}
-        data-testid="board-shelf-status"
-      >
-        {status?.message}
-      </div>
-
-      {confirmJSX}
-
-      <section aria-labelledby="board-shelf-list-title">
-        <h3 id="board-shelf-list-title" className="BoardShelf__listTitle">
-          {t("boardShelf.savedBoards")}
-        </h3>
-        {isCollaborating && (
-          <p className="BoardShelf__hint">
-            {t("boardShelf.openDisabledWhileCollaborating")}
+        <section className="BoardShelf__current">
+          <p data-testid="board-shelf-current">
+            {activeBoard
+              ? t("boardShelf.currentBoard", { name: activeBoard.name })
+              : t("boardShelf.noCurrentBoard")}
           </p>
-        )}
-        {!boards.length && !unreadable.length ? (
-          <p className="BoardShelf__hint">{t("boardShelf.empty")}</p>
-        ) : (
-          <ul className="BoardShelf__list">
-            {boards.map((board) => (
-              <li
-                key={board.id}
-                className="BoardShelf__item"
-                data-testid={`board-shelf-item-${board.id}`}
-              >
-                {renaming?.id === board.id ? (
-                  <form
-                    className="BoardShelf__renameForm"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      commitRename();
-                    }}
-                  >
-                    <TextField
-                      label={t("boardShelf.renameLabel", { name: board.name })}
-                      value={renaming.name}
-                      selectOnRender
-                      onChange={(name) => setRenaming({ id: board.id, name })}
-                      onKeyDown={(event) => {
-                        if (event.key === KEYS.ENTER) {
-                          event.preventDefault();
-                          commitRename();
-                        } else if (event.key === KEYS.ESCAPE) {
-                          event.stopPropagation();
-                          event.nativeEvent.stopImmediatePropagation();
-                          setRenaming(null);
-                        }
+          <div className="BoardShelf__saveRow">
+            {activeBoard && (
+              <DialogActionButton
+                label={t("boardShelf.save")}
+                actionType="primary"
+                data-testid="board-shelf-save"
+                onClick={() => save(false)}
+              />
+            )}
+            <TextField
+              label={t("boardShelf.newBoardName")}
+              placeholder={t("boardShelf.defaultName")}
+              value={newBoardName}
+              onChange={setNewBoardName}
+              onKeyDown={(event) => {
+                if (event.key === KEYS.ENTER) {
+                  event.preventDefault();
+                  save(true);
+                }
+              }}
+            />
+            <DialogActionButton
+              label={t("boardShelf.saveAsNew")}
+              actionType={activeBoard ? undefined : "primary"}
+              data-testid="board-shelf-save-new"
+              onClick={() => save(true)}
+            />
+          </div>
+        </section>
+
+        <div
+          className={`BoardShelf__status BoardShelf__status--${
+            status?.type ?? "info"
+          }`}
+          role={status?.type === "error" ? "alert" : "status"}
+          data-testid="board-shelf-status"
+        >
+          {status?.message}
+        </div>
+
+        {confirmJSX}
+
+        <section aria-labelledby="board-shelf-list-title">
+          <h3 id="board-shelf-list-title" className="BoardShelf__listTitle">
+            {t("boardShelf.savedBoards")}
+          </h3>
+          {isCollaborating && (
+            <p className="BoardShelf__hint">
+              {t("boardShelf.openDisabledWhileCollaborating")}
+            </p>
+          )}
+          {!boards.length && !unreadable.length ? (
+            <p className="BoardShelf__hint">{t("boardShelf.empty")}</p>
+          ) : (
+            <ul className="BoardShelf__list">
+              {boards.map((board) => (
+                <li
+                  key={board.id}
+                  className="BoardShelf__item"
+                  data-testid={`board-shelf-item-${board.id}`}
+                >
+                  {renaming?.id === board.id ? (
+                    <form
+                      className="BoardShelf__renameForm"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        commitRename();
                       }}
-                    />
-                    <DialogActionButton
-                      label={t("boardShelf.rename")}
-                      type="submit"
-                      data-testid="board-shelf-rename-submit"
-                      disabled={isBusy}
-                    />
-                    <DialogActionButton
-                      label={t("buttons.cancel")}
-                      onClick={() => setRenaming(null)}
-                    />
-                  </form>
-                ) : (
-                  <>
-                    <div className="BoardShelf__itemText">
-                      <span className="BoardShelf__itemName">
-                        {board.name}
-                        {activeBoard?.id === board.id ? " ✓" : ""}
-                      </span>
-                      <span className="BoardShelf__itemMeta">
-                        {t("boardShelf.updated", {
-                          date: formatDate(board.updatedAt),
+                    >
+                      <TextField
+                        label={t("boardShelf.renameLabel", {
+                          name: board.name,
                         })}
-                      </span>
-                    </div>
-                    <div className="BoardShelf__itemActions">
-                      <DialogActionButton
-                        label={t("boardShelf.open")}
-                        aria-label={`${t("boardShelf.open")}: ${board.name}`}
-                        data-testid="board-shelf-open"
-                        disabled={isBusy || isCollaborating}
-                        onClick={() => requestOpen(board)}
+                        value={renaming.name}
+                        selectOnRender
+                        onChange={(name) => setRenaming({ id: board.id, name })}
+                        onKeyDown={(event) => {
+                          if (event.key === KEYS.ENTER) {
+                            event.preventDefault();
+                            commitRename();
+                          } else if (event.key === KEYS.ESCAPE) {
+                            event.stopPropagation();
+                            event.nativeEvent.stopImmediatePropagation();
+                            setRenaming(null);
+                          }
+                        }}
                       />
                       <DialogActionButton
                         label={t("boardShelf.rename")}
-                        aria-label={`${t("boardShelf.rename")}: ${board.name}`}
-                        data-testid="board-shelf-rename"
-                        disabled={isBusy}
-                        onClick={() =>
-                          setRenaming({ id: board.id, name: board.name })
-                        }
+                        type="submit"
+                        data-testid="board-shelf-rename-submit"
                       />
                       <DialogActionButton
-                        label={t("boardShelf.delete")}
-                        aria-label={`${t("boardShelf.delete")}: ${board.name}`}
-                        actionType="danger"
-                        data-testid="board-shelf-delete"
-                        disabled={isBusy}
-                        onClick={() =>
-                          setPendingConfirm({
-                            type: "delete",
-                            board: { id: board.id, name: board.name },
-                          })
-                        }
+                        label={t("buttons.cancel")}
+                        onClick={() => setRenaming(null)}
                       />
-                    </div>
-                  </>
-                )}
-              </li>
-            ))}
-            {unreadable.map((entry) => (
-              <li
-                key={entry.id}
-                className="BoardShelf__item BoardShelf__item--unreadable"
-                data-testid={`board-shelf-unreadable-${entry.id}`}
-              >
-                <div className="BoardShelf__itemText">
-                  <span className="BoardShelf__itemName">
-                    {t("boardShelf.unreadable")}
-                  </span>
-                  <span className="BoardShelf__itemMeta">
-                    {t("boardShelf.unreadableHint")}
-                  </span>
-                </div>
-                <div className="BoardShelf__itemActions">
-                  <DialogActionButton
-                    label={t("boardShelf.delete")}
-                    actionType="danger"
-                    disabled={isBusy}
-                    onClick={() =>
-                      setPendingConfirm({
-                        type: "delete",
-                        board: {
-                          id: entry.id,
-                          name: t("boardShelf.unreadable"),
-                        },
-                      })
-                    }
-                  />
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="BoardShelf__itemText">
+                        <span className="BoardShelf__itemName">
+                          {board.name}
+                          {activeBoard?.id === board.id ? " ✓" : ""}
+                        </span>
+                        <span className="BoardShelf__itemMeta">
+                          {t("boardShelf.updated", {
+                            date: formatDate(board.updatedAt),
+                          })}
+                        </span>
+                      </div>
+                      <div className="BoardShelf__itemActions">
+                        <DialogActionButton
+                          label={t("boardShelf.open")}
+                          aria-label={`${t("boardShelf.open")}: ${board.name}`}
+                          data-testid="board-shelf-open"
+                          disabled={isCollaborating}
+                          onClick={() => requestOpen(board)}
+                        />
+                        <DialogActionButton
+                          label={t("boardShelf.rename")}
+                          aria-label={`${t("boardShelf.rename")}: ${
+                            board.name
+                          }`}
+                          data-testid="board-shelf-rename"
+                          onClick={() =>
+                            setRenaming({ id: board.id, name: board.name })
+                          }
+                        />
+                        <DialogActionButton
+                          label={t("boardShelf.delete")}
+                          aria-label={`${t("boardShelf.delete")}: ${
+                            board.name
+                          }`}
+                          actionType="danger"
+                          data-testid="board-shelf-delete"
+                          onClick={() =>
+                            setPendingConfirm({
+                              type: "delete",
+                              board: { id: board.id, name: board.name },
+                            })
+                          }
+                        />
+                      </div>
+                    </>
+                  )}
+                </li>
+              ))}
+              {unreadable.map((entry) => (
+                <li
+                  key={entry.id}
+                  className="BoardShelf__item BoardShelf__item--unreadable"
+                  data-testid={`board-shelf-unreadable-${entry.id}`}
+                >
+                  <div className="BoardShelf__itemText">
+                    <span className="BoardShelf__itemName">
+                      {t("boardShelf.unreadable")}
+                    </span>
+                    <span className="BoardShelf__itemMeta">
+                      {t("boardShelf.unreadableHint")}
+                    </span>
+                  </div>
+                  <div className="BoardShelf__itemActions">
+                    <DialogActionButton
+                      label={t("boardShelf.delete")}
+                      actionType="danger"
+                      onClick={() =>
+                        setPendingConfirm({
+                          type: "delete",
+                          board: {
+                            id: entry.id,
+                            name: t("boardShelf.unreadable"),
+                          },
+                        })
+                      }
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
     </Dialog>
   );
 };

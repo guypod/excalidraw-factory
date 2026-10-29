@@ -2,6 +2,10 @@
 
 .excalidraw {
   .BoardShelfDialog {
+    .BoardShelf__root:focus {
+      outline: none;
+    }
+
     p {
       margin: 0 0 0.75rem;
       color: var(--text-primary-color);

@@ -260,6 +260,25 @@ describe("BoardShelfDialog", () => {
     );
   });
 
+  it("keeps focus in the dialog after a confirmation closes", async () => {
+    await openShelf();
+    await saveAsNew("Focus");
+    await clickInItem("Focus", "board-shelf-delete");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        byTestId("board-shelf-confirm-cancel"),
+      ),
+    );
+    fireEvent.click(byTestId("board-shelf-confirm-cancel")!);
+    await waitFor(() =>
+      expect(
+        document
+          .querySelector(".BoardShelfDialog")
+          ?.contains(document.activeElement),
+      ).toBe(true),
+    );
+  });
+
   it("asks before deleting a board", async () => {
     await openShelf();
     await saveAsNew("Doomed");
