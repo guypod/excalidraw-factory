@@ -1,6 +1,6 @@
 import React from "react";
 
-import { KEYS, reseed } from "@excalidraw/common";
+import { CODES, KEYS, reseed } from "@excalidraw/common";
 
 import { CaptureUpdateAction } from "@excalidraw/element";
 
@@ -282,5 +282,68 @@ describe("<FramePresentation/>", () => {
     expect(document.activeElement).toBe(
       document.querySelector(".excalidraw-container"),
     );
+  });
+
+  it("leaves browser zoom shortcuts to the browser", async () => {
+    createScene();
+    await start();
+    const dialog = document.querySelector(".FramePresentation") as HTMLElement;
+    expect(document.activeElement).toBe(dialog);
+
+    for (const [key, code] of [
+      ["=", CODES.EQUAL],
+      ["-", CODES.MINUS],
+      ["0", CODES.ZERO],
+    ]) {
+      // fireEvent returns false when the default action was prevented
+      expect(fireEvent.keyDown(dialog, { key, code, ctrlKey: true })).toBe(
+        true,
+      );
+    }
+    // without a modifier, the same keys still never reach the editor
+    expect(fireEvent.keyDown(dialog, { key: "-", code: CODES.MINUS })).toBe(
+      false,
+    );
+    expect(isPresenting()).toBe(true);
+  });
+
+  it("presents only in the editor that started it", async () => {
+    createScene();
+    API.setAppState({ scrollX: 30, scrollY: 40 });
+    act(() =>
+      editorJotaiStore.set(framePresentationAtom, {
+        editorId: "another-editor",
+        savedViewport: {
+          scrollX: 999,
+          scrollY: 999,
+          zoom: { value: 3 as any },
+        },
+      }),
+    );
+    // re-render this editor so it reads the atom
+    act(() => API.setAppState({ scrollX: 30 }));
+
+    expect(document.querySelector(".FramePresentation")).toBeNull();
+    expect(
+      document
+        .querySelector(".excalidraw-container")
+        ?.classList.contains("excalidraw--presenting"),
+    ).toBe(false);
+    Keyboard.keyPress(KEYS.R);
+    expect(h.state.activeTool.type).toBe("rectangle");
+    expect([h.state.scrollX, h.state.scrollY]).toEqual([30, 40]);
+  });
+
+  it("ends the presentation when its editor unmounts", async () => {
+    createScene();
+    await start();
+    expect(isPresenting()).toBe(true);
+
+    unmountComponent();
+    expect(isPresenting()).toBe(false);
+
+    // a new editor starts without a presentation
+    await render(<Excalidraw handleKeyboardGlobally={true} />);
+    expect(document.querySelector(".FramePresentation")).toBeNull();
   });
 });

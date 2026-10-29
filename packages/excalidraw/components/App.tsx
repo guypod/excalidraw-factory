@@ -438,7 +438,10 @@ import ConvertElementTypePopup, {
   convertElementTypePopupAtom,
   convertElementTypes,
 } from "./ConvertElementTypePopup";
-import { framePresentationAtom } from "./FramePresentation";
+import {
+  endFramePresentationForEditor,
+  isPresentingFrames,
+} from "./FramePresentation";
 
 import { activeConfirmDialogAtom } from "./ActiveConfirmDialog";
 import BraveMeasureTextError from "./BraveMeasureTextError";
@@ -2147,9 +2150,7 @@ class App extends React.Component<AppProps, AppState> {
             this.state.viewModeEnabled ||
             this.state.openDialog?.name === "elementLinkSelector",
           "excalidraw--mobile": this.editorInterface.formFactor === "phone",
-          "excalidraw--presenting": !!editorJotaiStore.get(
-            framePresentationAtom,
-          ),
+          "excalidraw--presenting": isPresentingFrames(this.id),
         })}
         style={{
           ["--ui-pointerEvents" as any]: shouldBlockPointerEvents
@@ -3210,6 +3211,7 @@ class App extends React.Component<AppProps, AppState> {
     }
 
     this.editorLifecycleEvents.emit("editor:unmount");
+    endFramePresentationForEditor(this.id);
     this.props.onUnmount?.();
     this.props.onExcalidrawAPI?.(null);
 

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { EVENT, KEYS } from "@excalidraw/common";
+import { CODES, EVENT, KEYS } from "@excalidraw/common";
 
 import { getFrameLikeTitle, isFrameLikeElement } from "@excalidraw/element";
 
@@ -9,7 +9,7 @@ import type {
   NonDeletedExcalidrawElement,
 } from "@excalidraw/element/types";
 
-import { atom, useAtomValue } from "../editor-jotai";
+import { atom, editorJotaiStore, useAtomValue } from "../editor-jotai";
 import { t } from "../i18n";
 
 import { useApp } from "./App";
@@ -25,9 +25,17 @@ export type PresentationViewport = Pick<
   "scrollX" | "scrollY" | "zoom"
 >;
 
+/**
+ * Every editor shares one jotai store, so the session records which editor
+ * started it and only that editor presents.
+ */
 export const framePresentationAtom = atom<{
+  editorId: AppClassProperties["id"];
   savedViewport: PresentationViewport;
 } | null>(null);
+
+export const isPresentingFrames = (editorId: AppClassProperties["id"]) =>
+  editorJotaiStore.get(framePresentationAtom)?.editorId === editorId;
 
 export type PresentationSlide = {
   id: ExcalidrawFrameLikeElement["id"];
@@ -75,12 +83,21 @@ const PREVIOUS_KEYS: readonly string[] = [
   KEYS.ARROW_UP,
   KEYS.PAGE_UP,
 ];
+/** browser zoom shortcuts, left to the browser while presenting */
+const BROWSER_ZOOM_CODES: readonly string[] = [
+  CODES.EQUAL,
+  CODES.MINUS,
+  CODES.ZERO,
+  CODES.NUM_ADD,
+  CODES.NUM_SUBTRACT,
+  CODES.NUM_ZERO,
+];
 
 export const FramePresentation = () => {
   const app = useApp();
   const presentation = useAtomValue(framePresentationAtom);
 
-  if (!presentation) {
+  if (presentation?.editorId !== app.id) {
     return null;
   }
 
@@ -184,10 +201,14 @@ const FramePresentationInner = ({ onExit }: { onExit: () => void }) => {
     } else if (event.key === "End") {
       goTo(slides.length - 1);
     } else {
-      // Tab, and Enter or Space on a button, keep their usual meaning. No
-      // other key reaches the editor, so no shortcut can edit the drawing
+      // Tab, Enter or Space on a button, and browser zoom keep their usual
+      // meaning. No key reaches the editor, so no shortcut can edit the
+      // drawing
       event.stopPropagation();
-      if (event.key !== KEYS.TAB && !onButton) {
+      const isBrowserZoom =
+        (event.ctrlKey || event.metaKey) &&
+        BROWSER_ZOOM_CODES.includes(event.code);
+      if (event.key !== KEYS.TAB && !onButton && !isBrowserZoom) {
         event.preventDefault();
       }
       return;
@@ -308,6 +329,15 @@ const FramePresentationInner = ({ onExit }: { onExit: () => void }) => {
   );
 };
 
+/** ends the session without restoring, when its editor goes away */
+export const endFramePresentationForEditor = (
+  editorId: AppClassProperties["id"],
+) => {
+  if (isPresentingFrames(editorId)) {
+    editorJotaiStore.set(framePresentationAtom, null);
+  }
+};
+
 /**
  * Starts presenting frames, saving the viewport to restore on exit. The
  * editor UI is hidden while presenting, but view mode, selection and the
@@ -316,6 +346,7 @@ const FramePresentationInner = ({ onExit }: { onExit: () => void }) => {
 export const startFramePresentation = (app: AppClassProperties) => {
   const { scrollX, scrollY, zoom } = app.state;
   app.updateEditorAtom(framePresentationAtom, {
+    editorId: app.id,
     savedViewport: { scrollX, scrollY, zoom },
   });
 };
