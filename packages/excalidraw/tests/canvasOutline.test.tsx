@@ -141,6 +141,58 @@ describe("<CanvasOutline/>", () => {
     expect(h.elements).toEqual(before);
   });
 
+  it("does not select locked elements, so they cannot be deleted", async () => {
+    const { box } = createScene();
+    act(() => {
+      API.updateElement(box, { locked: true });
+    });
+    await openOutline();
+
+    const item = getItems()[2];
+    act(() => item.focus());
+    fireEvent.keyDown(item, { key: "Enter" });
+
+    await waitFor(() => expect(h.state.activeLockedId).toBe(box.id));
+    expect(h.state.selectedElementIds).toEqual({});
+
+    act(() => {
+      Keyboard.keyPress("Delete");
+    });
+    expect(h.elements.find((el) => el.id === box.id)?.isDeleted).toBe(false);
+  });
+
+  it("keeps a Space activation selected while a drawing tool is active", async () => {
+    const { box } = createScene();
+    act(() => {
+      h.app.setActiveTool({ type: "rectangle" });
+    });
+    await openOutline();
+
+    const item = getItems()[2];
+    act(() => item.focus());
+    fireEvent.keyDown(item, { key: " " });
+    fireEvent.keyUp(item, { key: " " });
+
+    await waitFor(() =>
+      expect(h.state.selectedElementIds).toEqual({ [box.id]: true }),
+    );
+  });
+
+  it("moves focus to a remaining entry when the focused one is deleted", async () => {
+    const { freeText } = createScene();
+    await openOutline();
+
+    const item = getItems()[1];
+    act(() => item.focus());
+    expect(item.dataset.outlineId).toBe(freeText.id);
+
+    act(() => {
+      API.updateElement(freeText, { isDeleted: true });
+    });
+    await waitFor(() => expect(getItems()).toHaveLength(2));
+    await waitFor(() => expect(document.activeElement).toBe(getItems()[0]));
+  });
+
   it("updates after edits, deletion, undo and redo", async () => {
     const { frame, freeText } = createScene();
     await openOutline();

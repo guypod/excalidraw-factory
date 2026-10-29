@@ -14,6 +14,7 @@ import {
 
 import type {
   ElementsMap,
+  ExcalidrawFrameLikeElement,
   ExcalidrawElement,
   NonDeletedExcalidrawElement,
 } from "@excalidraw/element/types";
@@ -56,37 +57,44 @@ export const getOutlineItems = (
   elements: readonly NonDeletedExcalidrawElement[],
   elementsMap: ElementsMap,
 ): { frames: OutlineItem[]; labels: OutlineItem[] } => {
-  const frames: OutlineItem[] = [];
-  const labels: OutlineItem[] = [];
+  const frames: ExcalidrawFrameLikeElement[] = [];
+  const labels: { element: NonDeletedExcalidrawElement; label: string }[] = [];
 
-  for (const element of [...elements].sort(byPosition)) {
+  // only the entries are sorted, so unlabelled shapes on large boards cost a
+  // single scan per scene update
+  for (const element of elements) {
     if (element.isDeleted) {
       continue;
     }
     if (isFrameLikeElement(element)) {
-      frames.push({
-        id: element.id,
-        kind: "frame",
-        label: toSingleLine(getFrameLikeTitle(element)),
-      });
+      frames.push(element);
     } else if (isTextElement(element)) {
       if (element.containerId) {
         continue;
       }
       const label = toSingleLine(element.originalText);
       if (label) {
-        labels.push({ id: element.id, kind: "label", label });
+        labels.push({ element, label });
       }
     } else {
       const boundText = getBoundTextElement(element, elementsMap);
       const label = boundText && toSingleLine(boundText.originalText);
       if (label) {
-        labels.push({ id: element.id, kind: "label", label });
+        labels.push({ element, label });
       }
     }
   }
 
-  return { frames, labels };
+  return {
+    frames: frames.sort(byPosition).map((element) => ({
+      id: element.id,
+      kind: "frame",
+      label: toSingleLine(getFrameLikeTitle(element)),
+    })),
+    labels: labels
+      .sort((a, b) => byPosition(a.element, b.element))
+      .map(({ element, label }) => ({ id: element.id, kind: "label", label })),
+  };
 };
 
 const selectAndZoomTo = (app: AppClassProperties, id: string) => {
@@ -95,19 +103,35 @@ const selectAndZoomTo = (app: AppClassProperties, id: string) => {
     return;
   }
 
+  // locked elements are not selected, so they stay protected from delete and
+  // other edits. They get the same unlock affordance as clicking them on the
+  // canvas instead
+  const appState = element.locked
+    ? {
+        ...app.state,
+        selectedElementIds: {},
+        selectedGroupIds: {},
+        editingGroupId: null,
+        activeLockedId:
+          element.groupIds.length > 0
+            ? element.groupIds.at(-1) || ""
+            : element.id,
+      }
+    : {
+        ...app.state,
+        ...selectGroupsForSelectedElements(
+          { editingGroupId: null, selectedElementIds: { [id]: true } },
+          app.scene.getNonDeletedElements(),
+          app.state,
+          app,
+        ),
+        activeLockedId: null,
+      };
+
   // selection goes through the action path so it is one undo step, like
   // other selection changes, and no element is mutated
   app.syncActionResult({
-    appState: {
-      ...app.state,
-      ...selectGroupsForSelectedElements(
-        { editingGroupId: null, selectedElementIds: { [id]: true } },
-        app.scene.getNonDeletedElements(),
-        app.state,
-        app,
-      ),
-      selectedLinearElement: null,
-    },
+    appState: { ...appState, selectedLinearElement: null },
     captureUpdate: CaptureUpdateAction.IMMEDIATELY,
   });
 
@@ -152,6 +176,9 @@ export const CanvasOutline = () => {
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const emptyRef = useRef<HTMLDivElement>(null);
+  // the item holding DOM focus, so focus can follow when it is removed
+  const focusedIdRef = useRef<string | null>(null);
 
   // keep the roving tab stop on an item that still exists
   const activeIndex = Math.max(
@@ -161,7 +188,22 @@ export const CanvasOutline = () => {
 
   useEffect(() => {
     if (activeId && !items.some((item) => item.id === activeId)) {
-      setActiveId(items[0]?.id ?? null);
+      const nextId = items[0]?.id ?? null;
+      setActiveId(nextId);
+      // only recover focus that was lost with the removed item, never steal
+      // it from elsewhere
+      if (
+        focusedIdRef.current === activeId &&
+        (!document.activeElement || document.activeElement === document.body)
+      ) {
+        focusedIdRef.current = nextId;
+        const target = nextId
+          ? listRef.current?.querySelector<HTMLElement>(
+              `[data-outline-id="${CSS.escape(nextId)}"]`,
+            )
+          : emptyRef.current;
+        target?.focus();
+      }
     }
   }, [items, activeId]);
 
@@ -203,7 +245,12 @@ export const CanvasOutline = () => {
   if (!items.length) {
     return (
       <div className="CanvasOutline" data-testid="canvas-outline">
-        <div className="CanvasOutline__empty" role="status">
+        <div
+          ref={emptyRef}
+          className="CanvasOutline__empty"
+          role="status"
+          tabIndex={-1}
+        >
           <p className="CanvasOutline__empty-title">
             {t("canvasOutline.emptyTitle")}
           </p>
@@ -243,8 +290,24 @@ export const CanvasOutline = () => {
               className={clsx("CanvasOutline__item", {
                 "CanvasOutline__item--selected": selected,
               })}
-              onFocus={() => setActiveId(item.id)}
+              onFocus={() => {
+                focusedIdRef.current = item.id;
+                setActiveId(item.id);
+              }}
+              onBlur={(event) => {
+                // a removed item is disconnected when it loses focus
+                if (event.currentTarget.isConnected) {
+                  focusedIdRef.current = null;
+                }
+              }}
               onKeyDown={(event) => handleKeyDown(event, index)}
+              onKeyUp={(event) => {
+                // the editor clears the selection on Space keyup when a
+                // drawing tool is active, which would undo the activation
+                if (event.key === KEYS.ENTER || event.key === KEYS.SPACE) {
+                  event.stopPropagation();
+                }
+              }}
               onClick={() => {
                 setActiveId(item.id);
                 selectAndZoomTo(app, item.id);
