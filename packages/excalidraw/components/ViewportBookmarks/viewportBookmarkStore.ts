@@ -118,6 +118,11 @@ export type BookmarkLoadResult = {
   error: "load" | "save" | null;
   /** this tab's changes that could not be applied to the current list */
   rejected: RejectedBookmarkOperation[];
+  /**
+   * this tab's changes the last read list could not confirm while storage
+   * cannot be read. They are kept and checked once storage can be read again.
+   */
+  unverified: BookmarkOperation[];
 };
 
 /**
@@ -240,10 +245,16 @@ export const loadViewportBookmarks = (boardKey: string): BookmarkLoadResult => {
         : stored.bookmarks,
       error: "load",
       rejected: [],
+      unverified: [],
     };
   }
   if (!pending) {
-    return { value: stored.bookmarks, error: null, rejected: [] };
+    return {
+      value: stored.bookmarks,
+      error: null,
+      rejected: [],
+      unverified: [],
+    };
   }
   const { value, applied, rejected } = replayOperations(
     stored.bookmarks,
@@ -255,7 +266,12 @@ export const loadViewportBookmarks = (boardKey: string): BookmarkLoadResult => {
   } else {
     pendingOperations.delete(boardKey);
   }
-  return { value, error: applied.length ? "save" : null, rejected };
+  return {
+    value,
+    error: applied.length ? "save" : null,
+    rejected,
+    unverified: [],
+  };
 };
 
 /**
@@ -275,17 +291,16 @@ export const updateViewportBookmarks = (
   );
   if (!stored.all) {
     // storage cannot be read: writing could overwrite other tabs' changes,
-    // and rejecting against the last read list could drop valid changes, so
-    // everything is kept to replay once storage can be read again. Only a
-    // change that is impossible even on the last read list is reported.
-    const ownRejection = rejected.filter(
-      (entry) => entry.operation === operation,
-    );
-    pendingOperations.set(
-      boardKey,
-      ownRejection.length ? operations.slice(0, -1) : operations,
-    );
-    return { value, error: "save", rejected: ownRejection };
+    // and the last read list may be stale, so nothing is rejected against it.
+    // Every change, the new one included, is kept and its real outcome is
+    // reported once storage can be read again.
+    pendingOperations.set(boardKey, operations);
+    return {
+      value,
+      error: "save",
+      rejected: [],
+      unverified: rejected.map((entry) => entry.operation),
+    };
   }
   const all = stored.all;
   try {
@@ -300,7 +315,7 @@ export const updateViewportBookmarks = (
     );
     pendingOperations.delete(boardKey);
     lastStored.set(boardKey, value);
-    return { value, error: null, rejected };
+    return { value, error: null, rejected, unverified: [] };
   } catch (error: any) {
     console.warn(`viewport bookmarks: could not save: ${error.message}`);
     if (applied.length) {
@@ -308,7 +323,12 @@ export const updateViewportBookmarks = (
     } else {
       pendingOperations.delete(boardKey);
     }
-    return { value, error: applied.length ? "save" : null, rejected };
+    return {
+      value,
+      error: applied.length ? "save" : null,
+      rejected,
+      unverified: [],
+    };
   }
 };
 

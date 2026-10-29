@@ -71,6 +71,20 @@ const describeRejection = ({
     : t("viewportBookmarks.removeMissing", { name: operation.name });
 };
 
+/**
+ * a change kept while storage cannot be read, which the last read list could
+ * not confirm
+ */
+const describeUnverified = (operation: BookmarkOperation) =>
+  t("viewportBookmarks.unverified", {
+    name:
+      operation.type === "add"
+        ? operation.bookmark.name
+        : operation.type === "rename"
+        ? operation.from
+        : operation.name,
+  });
+
 export const ViewportBookmarks = () => {
   const app = useApp();
   const panel = useAtomValue(viewportBookmarksAtom);
@@ -176,7 +190,8 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
    * Applies the change to the board's stored list as it is now, so changes
    * another tab stored meanwhile are kept. The change is kept to replay until
    * reload when storage refuses it. Success is announced only when the change
-   * applied; returns whether it did.
+   * applied, and a change that cannot be checked while storage is unreadable
+   * is announced as pending; returns whether it was not rejected.
    */
   const commit = (operation: BookmarkOperation, message: string) => {
     const result = updateViewportBookmarks(boardKey, operation);
@@ -185,7 +200,17 @@ const ViewportBookmarksPanel = ({ onClose }: { onClose: () => void }) => {
     const rejection = result.rejected.find(
       (rejected) => rejected.operation === operation,
     );
-    setAnnouncement(rejection ? describeRejection(rejection) : message);
+    const unverified = result.unverified.includes(operation);
+    setAnnouncement(
+      rejection
+        ? describeRejection(rejection)
+        : unverified
+        ? describeUnverified(operation)
+        : message,
+    );
+    if (unverified) {
+      setRejections([describeUnverified(operation)]);
+    }
     return !rejection;
   };
 

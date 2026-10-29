@@ -147,6 +147,7 @@ describe("viewport bookmark helpers", () => {
     expect(loadViewportBookmarks("/")).toEqual({
       error: null,
       rejected: [],
+      unverified: [],
       value: [{ id: "ok", name: "Fine", centerX: 1, centerY: 1, zoom: 1 }],
     });
   });
@@ -156,6 +157,7 @@ describe("viewport bookmark helpers", () => {
     expect(loadViewportBookmarks("/")).toEqual({
       error: "load",
       rejected: [],
+      unverified: [],
       value: [],
     });
     // a later save replaces the corrupt data
@@ -342,6 +344,124 @@ describe("viewport bookmark helpers", () => {
     ).toMatchObject({ error: null, rejected: [] });
     expect(storedFor("/")).toEqual([bookmark("a", "B")]);
     expect(storedFor("/other")).toEqual([bookmark("o", "O")]);
+    vi.restoreAllMocks();
+  });
+
+  it("keeps a change the stale list rejects while storage cannot be read", () => {
+    const bookmark = (id: string, name: string) => ({
+      id,
+      name,
+      centerX: 0,
+      centerY: 0,
+      zoom: 1,
+    });
+    localStorage.setItem(
+      VIEWPORT_BOOKMARKS_STORAGE_KEY,
+      JSON.stringify({
+        "/": [bookmark("a", "A"), bookmark("b", "B")],
+        "/other": [bookmark("o", "O")],
+      }),
+    );
+    // this tab last read A and B
+    loadViewportBookmarks("/");
+    // another tab renames A to Theirs, then this tab cannot read storage
+    localStorage.setItem(
+      VIEWPORT_BOOKMARKS_STORAGE_KEY,
+      JSON.stringify({
+        "/": [bookmark("a", "Theirs"), bookmark("b", "B")],
+        "/other": [bookmark("o", "O")],
+      }),
+    );
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const getItem = vi
+      .spyOn(window.localStorage, "getItem")
+      .mockImplementation(() => {
+        throw new Error("SecurityError");
+      });
+    // the rename input opened on Theirs before reads failed, so the rename
+    // does not match the stale list
+    const rename = {
+      type: "rename",
+      id: "a",
+      from: "Theirs",
+      name: "Mine",
+    } as const;
+    const blind = updateViewportBookmarks("/", rename);
+    expect(blind).toMatchObject({
+      error: "save",
+      rejected: [],
+      unverified: [rename],
+    });
+    const remove = { type: "remove", id: "b", name: "B" } as const;
+    expect(updateViewportBookmarks("/", remove)).toMatchObject({
+      rejected: [],
+      unverified: [rename],
+    });
+    getItem.mockRestore();
+
+    // once storage can be read, the rename is checked against the stored
+    // list, applies, and other boards are untouched
+    expect(loadViewportBookmarks("/")).toMatchObject({
+      error: "save",
+      rejected: [],
+      unverified: [],
+      value: [{ id: "a", name: "Mine" }],
+    });
+    expect(
+      updateViewportBookmarks("/", {
+        type: "add",
+        bookmark: bookmark("c", "C"),
+      }),
+    ).toMatchObject({ error: null, rejected: [] });
+    expect(storedFor("/")).toEqual([bookmark("a", "Mine"), bookmark("c", "C")]);
+    expect(storedFor("/other")).toEqual([bookmark("o", "O")]);
+    vi.restoreAllMocks();
+  });
+
+  it("reports the real outcome of an unverified change once storage is read", () => {
+    const bookmark = (id: string, name: string) => ({
+      id,
+      name,
+      centerX: 0,
+      centerY: 0,
+      zoom: 1,
+    });
+    localStorage.setItem(
+      VIEWPORT_BOOKMARKS_STORAGE_KEY,
+      JSON.stringify({ "/": [bookmark("a", "A")] }),
+    );
+    loadViewportBookmarks("/");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const getItem = vi
+      .spyOn(window.localStorage, "getItem")
+      .mockImplementation(() => {
+        throw new Error("SecurityError");
+      });
+    const rename = {
+      type: "rename",
+      id: "a",
+      from: "Seen",
+      name: "Mine",
+    } as const;
+    expect(updateViewportBookmarks("/", rename)).toMatchObject({
+      rejected: [],
+      unverified: [rename],
+    });
+    getItem.mockRestore();
+    // another tab renamed it to Theirs meanwhile
+    localStorage.setItem(
+      VIEWPORT_BOOKMARKS_STORAGE_KEY,
+      JSON.stringify({ "/": [bookmark("a", "Theirs")] }),
+    );
+
+    expect(loadViewportBookmarks("/")).toMatchObject({
+      error: null,
+      rejected: [{ operation: rename, reason: "conflict" }],
+      value: [{ name: "Theirs" }],
+    });
+    // reported once, then dropped, and storage was never overwritten
+    expect(loadViewportBookmarks("/").rejected).toEqual([]);
+    expect(storedFor("/")).toEqual([bookmark("a", "Theirs")]);
     vi.restoreAllMocks();
   });
 
@@ -642,6 +762,57 @@ describe("<ViewportBookmarks/>", () => {
       screen.getByTestId("viewport-bookmarks-announcement").textContent,
     ).toMatch(/Theirs/);
     expect(screen.queryByRole("button", { name: "Mine" })).toBe(null);
+  });
+
+  it("reports a rename as pending, not a conflict, while storage cannot be read", async () => {
+    await open();
+    saveView("Old");
+    const [saved] = storedFor();
+    fireEvent.keyDown(getBookmarkButton("Old"), { key: "F2" });
+    const input = screen.getByLabelText("New name for Old");
+    fireEvent.change(input, { target: { value: "Mine" } });
+    // another tab renames it, the panel sees that, then reads start failing
+    localStorage.setItem(
+      VIEWPORT_BOOKMARKS_STORAGE_KEY,
+      JSON.stringify({ [getBoardKey()]: [{ ...saved, name: "Theirs" }] }),
+    );
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent("storage", { key: VIEWPORT_BOOKMARKS_STORAGE_KEY }),
+      );
+    });
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const getItem = vi
+      .spyOn(window.localStorage, "getItem")
+      .mockImplementation(() => {
+        throw new Error("SecurityError");
+      });
+    fireEvent.keyDown(screen.getByLabelText("New name for Theirs"), {
+      key: KEYS.ENTER,
+    });
+
+    const announcement = screen.getByTestId(
+      "viewport-bookmarks-announcement",
+    ).textContent;
+    expect(announcement).toMatch(/could not be checked/);
+    expect(announcement).not.toMatch(/Renamed|another tab/);
+    expect(
+      screen.getByTestId("viewport-bookmarks-rejected").textContent,
+    ).toMatch(/kept and will be checked/);
+    getItem.mockRestore();
+
+    // reads recover: the rename was made from Old but storage has Theirs, so
+    // the conflict is reported and the other tab's name is kept
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent("storage", { key: VIEWPORT_BOOKMARKS_STORAGE_KEY }),
+      );
+    });
+    expect(
+      screen.getByTestId("viewport-bookmarks-rejected").textContent,
+    ).toMatch(/another tab renamed it to Theirs/);
+    expect(storedFor()).toEqual([{ ...saved, name: "Theirs" }]);
+    vi.restoreAllMocks();
   });
 
   it("leaves focus where the user moved it when a rename ends on blur", async () => {

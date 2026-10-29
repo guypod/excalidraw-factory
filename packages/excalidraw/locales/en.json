@@ -259,6 +259,7 @@
     "renameConflict": "{{name}} was not renamed to {{newName}}: another tab renamed it to {{current}}.",
     "removeMissing": "{{name}} was already removed in another tab.",
     "removeConflict": "{{name}} was not removed: another tab renamed it to {{current}}.",
+    "unverified": "The change to {{name}} could not be checked because browser storage cannot be read. It is kept and will be checked when storage can be read again.",
     "announceSaved": "Saved view {{name}}",
     "announceJumped": "Jumped to {{name}}",
     "announceRenamed": "Renamed to {{name}}",
